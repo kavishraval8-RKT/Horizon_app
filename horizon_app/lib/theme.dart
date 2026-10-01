@@ -104,13 +104,13 @@ Duration motion(BuildContext context, int ms) =>
 /// Confident deceleration for arrivals (no bounce).
 const easeOutExpo = Cubic(0.16, 1, 0.3, 1);
 
-/// Appearance setting (System / Dark / Light), saved on the device.
-final themeMode = ValueNotifier<ThemeMode>(ThemeMode.dark);
+/// Appearance setting (System / Dark / Light), saved on the device. Light until changed.
+final themeMode = ValueNotifier<ThemeMode>(ThemeMode.light);
 const _themeKey = 'theme_mode';
 
 Future<void> loadThemeMode() async {
   final saved = (await SharedPreferences.getInstance()).getString(_themeKey);
-  themeMode.value = ThemeMode.values.firstWhere((m) => m.name == saved, orElse: () => ThemeMode.dark);
+  themeMode.value = ThemeMode.values.firstWhere((m) => m.name == saved, orElse: () => ThemeMode.light);
 }
 
 Future<void> setThemeMode(ThemeMode mode) async {

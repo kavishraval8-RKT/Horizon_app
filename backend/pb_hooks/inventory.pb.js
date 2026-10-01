@@ -19,6 +19,28 @@ onRecordCreateExecute((e) => {
     if (next < 0) throw new BadRequestError(`Only ${available} available.`)
     if (next > total) throw new BadRequestError(`Only ${total - available} can be returned.`)
 
+    // Members can only return what they themselves have out (checked out minus returned).
+    // Admins may return beyond that to correct stock.
+    if (action === "Returned") {
+      const userId = e.record.getString("user")
+      const user = txApp.findRecordById("users", userId)
+      if (user.getString("role") !== "admin") {
+        const out = new DynamicModel({ n: 0 })
+        txApp.db()
+          .newQuery(
+            "SELECT COALESCE(SUM(CASE WHEN action = 'Checked Out' THEN quantity " +
+            "WHEN action = 'Returned' THEN -quantity ELSE 0 END), 0) AS n " +
+            "FROM inventory_logs WHERE item = {:item} AND user = {:user}")
+          .bind({ item: item.id, user: userId })
+          .one(out)
+        if (qty > out.n) {
+          throw new BadRequestError(out.n > 0
+            ? `You only have ${out.n} of these checked out.`
+            : "You don't have any of these checked out.")
+        }
+      }
+    }
+
     item.set("available_quantity", next)
     txApp.save(item)
 

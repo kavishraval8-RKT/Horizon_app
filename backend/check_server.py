@@ -67,10 +67,20 @@ assert log("Checked Out", 3) == 200 and available() == 2
 assert log("Checked Out", 3) == 400 and available() == 2   # more than available
 assert log("Damaged", 1) == 200 and available() == 1
 assert log("Returned", 5) == 400 and available() == 1      # above total
-assert log("Returned", 4) == 200 and available() == 5
-assert log("Checked Out", 1, user=admin_id) != 200 and available() == 5  # can't log as someone else
-assert call("GET", "/api/collections/inventory_logs/records", member)[1]["items"] == []  # ledger is admin-only
-assert len(call("GET", "/api/collections/inventory_logs/records", admin)[1]["items"]) == 3
+assert log("Returned", 4) == 400 and available() == 1      # member only has 3 out (1 was reported damaged separately)
+assert log("Returned", 3) == 200 and available() == 4
+assert log("Returned", 1) == 400 and available() == 4      # nothing left out
+assert log("Checked Out", 1, user=admin_id) != 200 and available() == 4  # can't log as someone else
+# members see only their own ledger entries; admins see all
+call("POST", "/api/collections/inventory_logs/records", admin,
+     {"item": item["id"], "user": admin_id, "quantity": 1, "action": "Checked Out"})
+mine = call("GET", "/api/collections/inventory_logs/records", member)[1]["items"]
+assert len(mine) == 3 and all(l["user"] == member_id for l in mine), mine
+assert len(call("GET", "/api/collections/inventory_logs/records", admin)[1]["items"]) == 4
+assert log("Returned", 1, user=admin_id) == 400  # can't return someone else's checkout either
+s, _ = call("POST", "/api/collections/inventory_logs/records", admin,
+            {"item": item["id"], "user": admin_id, "quantity": 2, "action": "Returned"})
+assert s == 200 and available() == 5  # admins may return beyond their own (stock correction), still capped at total
 
 # requests: members create Pending only, see only their own, can't change status
 body = {"requested_by": member_id, "item_name": "Arduino", "quantity": 1, "department": "Avionics", "justification": "x"}
@@ -111,5 +121,31 @@ s, b2 = book(admin, admin_id, "2030-01-01 12:00:00.000Z", "2030-01-01 13:00:00.0
 assert s == 200, b2
 assert call("DELETE", f"/api/collections/bookings/records/{b2['id']}", member)[0] != 204
 assert call("DELETE", f"/api/collections/bookings/records/{b1['id']}", member)[0] == 204
+
+# bulk checkout: a batch is all-or-nothing, and every line still obeys the rules
+s, bolt = call("POST", "/api/collections/inventory/records", admin,
+               {"name": "Bolt", "department": "Mechanical", "total_quantity": 10, "available_quantity": 10})
+s, nut = call("POST", "/api/collections/inventory/records", admin,
+              {"name": "Nut", "department": "Mechanical", "total_quantity": 1, "available_quantity": 1})
+
+
+def batch(lines, user=member_id):
+    reqs = [{"method": "POST", "url": "/api/collections/inventory_logs/records",
+             "body": {"item": i["id"], "user": user, "quantity": q, "action": "Checked Out"}} for i, q in lines]
+    return call("POST", "/api/batch", member, {"requests": reqs})
+
+
+def stock(i):
+    return call("GET", f"/api/collections/inventory/records/{i['id']}", admin)[1]["available_quantity"]
+
+
+s, d = batch([(bolt, 4), (nut, 2)])  # nut only has 1
+assert s == 400 and "2" not in d["data"]["requests"] and "1" in d["data"]["requests"], d
+assert stock(bolt) == 10 and stock(nut) == 1  # nothing applied
+assert batch([(bolt, 1)], user=admin_id)[0] == 400 and stock(bolt) == 10  # can't batch as someone else
+s, d = call("POST", "/api/batch", member, {"requests": [
+    {"method": "PATCH", "url": f"/api/collections/inventory/records/{bolt['id']}", "body": {"available_quantity": 99}}]})
+assert s == 400 and stock(bolt) == 10  # can't edit stock directly via batch either
+assert batch([(bolt, 4), (nut, 1)])[0] == 200 and stock(bolt) == 6 and stock(nut) == 0
 
 print("all server checks passed")

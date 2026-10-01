@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:pocketbase/pocketbase.dart';
 import '../services/pocketbase_service.dart';
 import '../theme.dart';
+import 'bulk_checkout_screen.dart';
 import 'category_screen.dart';
+import 'return_parts_screen.dart';
 import 'inventory_list_screen.dart';
 
 /// Inventory home: search, stock readouts, departments, and what's running low.
@@ -71,6 +73,21 @@ class _InventoryScreenState extends State<InventoryScreen> {
   Future<void> _open(Widget screen) async {
     await Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
     _load(); // counts may have changed
+  }
+
+  Future<void> _bulkCheckout() => _openFlow(const BulkCheckoutScreen());
+  Future<void> _returnParts() => _openFlow(const ReturnPartsScreen());
+
+  /// Opens a checkout/return screen; it pops with a confirmation message on success.
+  Future<void> _openFlow(Widget screen) async {
+    final done = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (_) => screen),
+    );
+    if (done != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(done)));
+    }
+    _load();
   }
 
   void _openItem(RecordModel r) {
@@ -231,6 +248,31 @@ class _InventoryScreenState extends State<InventoryScreen> {
                       ),
                     ),
                   ] else ...[
+                    const SizedBox(height: 12),
+                    // Twin actions: same size, side by side. Orange takes parts out, green brings them back.
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: _bulkCheckout,
+                            icon: const Icon(Icons.shopping_basket_outlined, size: 20),
+                            label: const Text('Check out'),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: _returnParts,
+                            icon: const Icon(Icons.assignment_return_outlined, size: 20),
+                            label: const Text('Return'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: C.ok,
+                              foregroundColor: C.p.onAccent,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 12),
                     _gauge(),
                     const SectionTitle('Departments'),
