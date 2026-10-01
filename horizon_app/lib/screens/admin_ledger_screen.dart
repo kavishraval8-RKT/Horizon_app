@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
-import '../theme.dart';
-import 'package:pocketbase/pocketbase.dart';
 import 'package:intl/intl.dart';
+import 'package:pocketbase/pocketbase.dart';
 import '../services/pocketbase_service.dart';
+import '../theme.dart';
 
+/// Every check-out, return, damage report and restock, newest first.
+/// Lines from one bulk check-out/return share a `batch` tag and show as one entry.
 class AdminLedgerScreen extends StatefulWidget {
   const AdminLedgerScreen({super.key});
 
@@ -11,240 +13,282 @@ class AdminLedgerScreen extends StatefulWidget {
   State<AdminLedgerScreen> createState() => _AdminLedgerScreenState();
 }
 
+/// One ledger entry: a single log, or every line of one bulk action.
+class _Entry {
+  final List<RecordModel> lines;
+  _Entry(this.lines);
+  RecordModel get first => lines.first;
+
+  /// A return basket can mix good and damaged lines; it reads as one "returned" entry.
+  String get action {
+    final actions = lines.map((l) => l.getStringValue('action')).toSet();
+    if (actions.length > 1 && actions.difference({'Returned', 'Returned Damaged'}).isEmpty) return 'Returned';
+    return first.getStringValue('action');
+  }
+
+  bool get hasPhoto => lines.any((l) => l.getStringValue('photo').isNotEmpty);
+  int get units => lines.fold(0, (n, l) => n + l.getIntValue('quantity'));
+  int get parts => lines.map((l) => l.getStringValue('item')).toSet().length; // good + damaged of one part = 1
+}
+
 class _AdminLedgerScreenState extends State<AdminLedgerScreen> {
-  final _pbService = PocketBaseService();
-  List<RecordModel> _logs = [];
-  bool _isLoading = true;
+  final _pb = PocketBaseService();
+  List<_Entry> _entries = [];
+  bool _loading = true;
+  String? _error;
+
+  static final _when = DateFormat('MMM d · h:mm a');
 
   @override
   void initState() {
     super.initState();
-    _fetchLogs();
+    _load();
   }
 
-  Future<void> _fetchLogs() async {
-    setState(() {
-      _isLoading = true;
-    });
-
+  Future<void> _load() async {
     try {
-      final records = await _pbService.client.collection('inventory_logs').getFullList(
+      final logs = await _pb.client.collection('inventory_logs').getFullList(
             sort: '-created',
             expand: 'item,user',
           );
-      
+      // Group consecutive lines that share a batch tag (a bulk basket lands together)
+      final entries = <_Entry>[];
+      final byBatch = <String, _Entry>{};
+      for (final l in logs) {
+        final tag = l.getStringValue('batch');
+        if (tag.isNotEmpty && byBatch.containsKey(tag)) {
+          byBatch[tag]!.lines.add(l);
+        } else {
+          final e = _Entry([l]);
+          entries.add(e);
+          if (tag.isNotEmpty) byBatch[tag] = e;
+        }
+      }
       if (mounted) {
         setState(() {
-          _logs = records;
-          _isLoading = false;
+          _entries = entries;
+          _error = null;
         });
       }
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Couldn\'t load logs. ${friendlyError(e)}'),
-            backgroundColor: C.danger,
+      if (mounted) setState(() => _error = friendlyError(e));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  static (String verb, IconData icon, Color color) _style(String action) => switch (action) {
+        'Checked Out' => ('checked out', Icons.north_east, C.accent),
+        'Returned' => ('returned', Icons.south_west, C.ok),
+        'Damaged' => ('reported damage on', Icons.report_gmailerrorred, C.danger),
+        'Restocked' => ('restocked', Icons.add_box_outlined, C.text),
+        'Returned Damaged' => ('returned damaged', Icons.broken_image_outlined, C.danger),
+        _ => (action.toLowerCase(), Icons.info_outline, C.muted),
+      };
+
+  static String _who(RecordModel log) {
+    final user = log.get<RecordModel?>('expand.user');
+    if (user == null) return 'Someone';
+    final name = user.getStringValue('name');
+    return name.isNotEmpty ? name : user.getStringValue('email');
+  }
+
+  static String _item(RecordModel log) {
+    final name = log.get<RecordModel?>('expand.item')?.getStringValue('name') ?? '';
+    return name.isNotEmpty ? name : 'Deleted part';
+  }
+
+  static String _time(RecordModel log) {
+    try {
+      return _when.format(DateTime.parse(log.getStringValue('created')).toLocal());
+    } catch (_) {
+      return '';
+    }
+  }
+
+  /// "MPU6050 ×2 · Teensy 4.1 ×1 · +2 more"
+  static String _summary(_Entry e) {
+    final parts = e.lines.map((l) => '${_item(l)} ×${l.getIntValue('quantity')}'
+        '${l.getStringValue('action') == 'Returned Damaged' && e.action != 'Returned Damaged' ? ' (damaged)' : ''}').toList();
+    return parts.length <= 3 ? parts.join(' · ') : '${parts.take(3).join(' · ')} · +${parts.length - 3} more';
+  }
+
+  Future<void> _open(_Entry e) async {
+    final (verb, icon, color) = _style(e.action);
+    final log = e.first;
+    // Photos are private: viewing one needs a short-lived file token
+    String? token;
+    if (e.hasPhoto) {
+      try {
+        token = await _pb.client.files.getToken();
+      } catch (_) {}
+    }
+    if (!mounted) return;
+
+    String photoUrl(RecordModel l) =>
+        _pb.client.files.getURL(l, l.getStringValue('photo'), token: token).toString();
+
+    // Whole photo, never cropped; tap for full screen with pinch-to-zoom.
+    Widget photo(RecordModel l) => GestureDetector(
+          onTap: () => showDialog(
+            context: context,
+            builder: (c) => Dialog.fullscreen(
+              backgroundColor: Colors.black,
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: InteractiveViewer(
+                      maxScale: 5,
+                      child: Center(child: Image.network(photoUrl(l), fit: BoxFit.contain)),
+                    ),
+                  ),
+                  SafeArea(
+                    child: IconButton(
+                      onPressed: () => Navigator.pop(c),
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      tooltip: 'Close',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: Container(
+              width: double.infinity,
+              color: C.tint(C.muted, 0.12),
+              constraints: const BoxConstraints(maxHeight: 360),
+              child: Image.network(
+                photoUrl(l),
+                fit: BoxFit.contain,
+                errorBuilder: (_, _, _) => SizedBox(
+                  height: 100,
+                  child: Center(child: Icon(Icons.broken_image_outlined, color: C.muted)),
+                ),
+              ),
+            ),
           ),
         );
-      }
-    }
-  }
-
-  Color _getActionColor(String action) {
-    switch (action) {
-      case 'Checked Out':
-        return C.warn;
-      case 'Returned':
-        return C.ok;
-      case 'Damaged':
-        return C.danger;
-      default:
-        return C.muted;
-    }
-  }
-
-  IconData _getActionIcon(String action) {
-    switch (action) {
-      case 'Checked Out':
-        return Icons.logout;
-      case 'Returned':
-        return Icons.login;
-      case 'Damaged':
-        return Icons.warning;
-      default:
-        return Icons.info;
-    }
-  }
-
-  String _formatDateTime(String? dateTime) {
-    if (dateTime == null) return 'Unknown';
-    try {
-      final date = DateTime.parse(dateTime).toLocal();
-      return DateFormat('MMM d, y • h:mm a').format(date);
-    } catch (e) {
-      return 'Unknown';
-    }
-  }
-
-  void _showLogDetails(RecordModel log) {
-    final action = log.data['action'] ?? 'Unknown';
-    final quantity = log.data['quantity'] ?? 0;
-    final notes = log.data['notes'] ?? '';
-    final photo = log.data['photo'];
-    final created = log.data['created'];
-
-    String userEmail = 'Unknown User';
-    try {
-      final email = log.get<String>('expand.user.email');
-      if (email.isNotEmpty) {
-        userEmail = email;
-      }
-    } catch (e) {
-      // Use default
-    }
-
-    String itemName = 'Unknown Item';
-    try {
-      final name = log.get<String>('expand.item.name');
-      if (name.isNotEmpty) {
-        itemName = name;
-      }
-    } catch (e) {
-      // Use default
-    }
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (BuildContext context) {
-        return Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  IconTile(icon, color, size: 40),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('${_who(log)} $verb', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                        Text(_time(log), style: TextStyle(color: C.muted, fontSize: 13)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
+                child: ListView(
+                  shrinkWrap: true,
                   children: [
-                    Icon(
-                      _getActionIcon(action),
-                      color: _getActionColor(action),
-                      size: 32,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            action,
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: _getActionColor(action),
-                            ),
-                          ),
-                          Text(
-                            _formatDateTime(created),
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: C.muted,
-                            ),
-                          ),
-                        ],
+                    for (final l in e.lines) ...[
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Row(
+                          children: [
+                            Expanded(child: Text(_item(l))),
+                            if (l.getStringValue('action') == 'Returned Damaged' && e.action != 'Returned Damaged')
+                              Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: StatusTag('Damaged', C.danger, icon: Icons.broken_image_outlined),
+                              ),
+                            Text('×${l.getIntValue('quantity')}', style: mono.copyWith(fontWeight: FontWeight.w600)),
+                          ],
+                        ),
                       ),
-                    ),
+                      if (l.getStringValue('notes').isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Text('“${l.getStringValue('notes')}”', style: TextStyle(color: C.muted)),
+                        ),
+                      if (l.getStringValue('photo').isNotEmpty)
+                        Padding(padding: const EdgeInsets.only(bottom: 10), child: photo(l)),
+                    ],
                   ],
                 ),
-                const Divider(height: 24),
-                _buildDetailRow('User', userEmail),
-                _buildDetailRow('Item', itemName),
-                _buildDetailRow('Quantity', '$quantity'),
-                if (notes.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Notes:',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    notes,
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                ],
-                if (photo != null && photo.toString().isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Photo:',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.network(
-                      '${_pbService.client.baseURL}/api/files/${log.collectionId}/${log.id}/$photo',
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          height: 100,
-                          color: C.line,
-                          child: const Center(
-                            child: Icon(Icons.broken_image, size: 50),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Close'),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
-  Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 80,
-            child: Text(
-              '$label:',
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
+  Widget _card(_Entry e) {
+    final (verb, icon, color) = _style(e.action);
+    final multi = e.lines.length > 1;
+    final damaged = e.lines
+        .where((l) => l.getStringValue('action') == 'Returned Damaged')
+        .fold(0, (n, l) => n + l.getIntValue('quantity'));
+    final headline = multi
+        ? '$verb ${e.parts} part${e.parts == 1 ? '' : 's'} · ${e.units} units'
+            '${damaged > 0 && e.action == 'Returned' ? ' ($damaged damaged)' : ''}'
+        : '$verb ${_item(e.first)} ×${e.units}';
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: InkWell(
+        onTap: () => _open(e),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              IconTile(icon, color, size: 36),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text.rich(
+                      TextSpan(children: [
+                        TextSpan(text: _who(e.first), style: const TextStyle(fontWeight: FontWeight.w600)),
+                        TextSpan(text: ' $headline', style: TextStyle(color: color == C.text ? C.text : color)),
+                      ]),
+                    ),
+                    if (multi) ...[
+                      const SizedBox(height: 4),
+                      Text(_summary(e),
+                          maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, color: C.text)),
+                    ],
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Text(_time(e.first), style: TextStyle(fontSize: 12, color: C.muted)),
+                        if (e.hasPhoto) ...[
+                          const SizedBox(width: 8),
+                          Icon(Icons.photo_camera_outlined, size: 14, color: C.muted),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
+              Icon(Icons.chevron_right, color: C.muted),
+            ],
           ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(fontSize: 14),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -252,125 +296,32 @@ class _AdminLedgerScreenState extends State<AdminLedgerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Inventory Ledger'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh',
-            onPressed: _fetchLogs,
-          ),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(),
-            )
-          : _logs.isEmpty
-              ? Center(
-                  child: Text(
-                    'No logs found',
-                    style: TextStyle(fontSize: 18, color: C.muted),
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _fetchLogs,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16.0),
-                    itemCount: _logs.length,
-                    itemBuilder: (context, index) {
-                      final log = _logs[index];
-                      final action = log.data['action'] ?? 'Unknown';
-                      final quantity = log.data['quantity'] ?? 0;
-                      final created = log.data['created'];
-
-                      String userEmail = 'Unknown User';
-                      try {
-                        final email = log.get<String>('expand.user.email');
-                        if (email.isNotEmpty) {
-                          userEmail = email;
-                        }
-                      } catch (e) {
-                        // Use default
-                      }
-
-                      String itemName = 'Unknown Item';
-                      try {
-                        final name = log.get<String>('expand.item.name');
-                        if (name.isNotEmpty) {
-                          itemName = name;
-                        }
-                      } catch (e) {
-                        // Use default
-                      }
-
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        child: InkWell(
-                          onTap: () => _showLogDetails(log),
-                          borderRadius: BorderRadius.circular(4),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Row(
-                              children: [
-                                Icon(_getActionIcon(action), color: _getActionColor(action), size: 20),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      RichText(
-                                        text: TextSpan(
-                                          style: DefaultTextStyle.of(context).style,
-                                          children: [
-                                            TextSpan(
-                                              text: userEmail.length > 20 
-                                                  ? '${userEmail.substring(0, 17)}...' 
-                                                  : userEmail,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                            TextSpan(
-                                              text: ' $action ',
-                                              style: TextStyle(
-                                                color: _getActionColor(action),
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                            TextSpan(
-                                              text: '${quantity}x ',
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                            TextSpan(text: itemName),
-                                          ],
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        _formatDateTime(created),
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: C.muted,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Icon(
-                                  Icons.chevron_right,
-                                  color: C.muted,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
+      appBar: AppBar(title: const Text('Ledger')),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  if (_error != null && _entries.isEmpty) ...[
+                    const SizedBox(height: 48),
+                    Icon(Icons.cloud_off_outlined, size: 44, color: C.muted),
+                    const SizedBox(height: 12),
+                    Text(_error!, textAlign: TextAlign.center, style: TextStyle(color: C.muted)),
+                    const SizedBox(height: 16),
+                    Center(child: SubmitButton(onPressed: _load, child: const Text('Try again'))),
+                  ] else if (_entries.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 48),
+                      child: Text('Nothing has been checked out yet.',
+                          textAlign: TextAlign.center, style: TextStyle(color: C.muted)),
+                    )
+                  else
+                    for (final e in _entries) _card(e),
+                ],
+              ),
+            ),
     );
   }
 }

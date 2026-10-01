@@ -11,5 +11,14 @@ void main() {
     expect(friendlyError(ClientException(statusCode: 400, response: {'message': 'Only 2 available.'})),
         'Only 2 available.');
     expect(friendlyError(Exception('boom')), 'Something went wrong. Please try again.');
+    // A field's own reason beats the generic "Failed to create record."
+    expect(
+        friendlyError(ClientException(statusCode: 400, response: {
+          'message': 'Failed to create record.',
+          'data': {'photo': {'code': 'validation_invalid_mime_type', 'message': 'mime type must be one of: image/jpeg'}},
+        })),
+        'mime type must be one of: image/jpeg');
+    expect(friendlyError(ClientException(statusCode: 403, response: {'message': 'Only admins can restock.'})),
+        'Only admins can restock.');
   });
 }

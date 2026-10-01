@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pocketbase/pocketbase.dart';
+import 'package:image_picker/image_picker.dart';
+import '../photo.dart';
 import '../services/pocketbase_service.dart';
 import '../theme.dart';
 
@@ -24,6 +26,8 @@ class _Line {
 
 class _BulkCheckoutScreenState extends State<BulkCheckoutScreen> {
   final _pb = PocketBaseService();
+  final _batchTag = PocketBaseService.newId();
+  XFile? _photo; // optional, e.g. condition when taken; stored on the basket's first line
   final _search = TextEditingController();
   List<RecordModel> _items = [];
   final _basket = <String, _Line>{}; // item id -> line, in the order added
@@ -107,13 +111,15 @@ class _BulkCheckoutScreenState extends State<BulkCheckoutScreen> {
     if (lines.isEmpty || userId == null) return;
 
     final batch = _pb.client.createBatch();
+    final photo = _photo == null ? null : await photoPart(_photo!);
     for (final l in lines) {
-      batch.collection('inventory_logs').create(body: {
+      batch.collection('inventory_logs').create(files: [if (photo != null && l == lines.first) photo], body: {
         'id': l.id,
         'item': l.item.id,
         'user': userId,
         'quantity': l.qty,
         'action': 'Checked Out',
+        'batch': _batchTag, // groups this basket into one ledger entry
       });
     }
 
@@ -131,7 +137,7 @@ class _BulkCheckoutScreenState extends State<BulkCheckoutScreen> {
         if (dupId) return _done(lines);
         if (index >= 0 && index < lines.length) {
           final name = lines[index].item.getStringValue('name');
-          final why = res?['message'] ?? 'was rejected';
+          final why = serverReason(res) ?? 'was rejected';
           setState(() => _failedItemId = lines[index].item.id);
           if (mounted) Navigator.of(context).pop(); // close the review sheet
           _toast('Nothing was checked out. $name: $why', error: true);
@@ -300,6 +306,12 @@ class _BulkCheckoutScreenState extends State<BulkCheckoutScreen> {
                           ),
                       ],
                     ),
+                  ),
+                  const SizedBox(height: 8),
+                  PhotoField(
+                    photo: _photo,
+                    label: 'Add photo (optional)',
+                    onChanged: (p) => setSheet(() => _photo = p),
                   ),
                   const SizedBox(height: 12),
                   SubmitButton(

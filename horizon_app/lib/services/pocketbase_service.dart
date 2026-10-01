@@ -125,9 +125,22 @@ String friendlyError(Object e) {
     if (code == 502 || code == 503 || code == 504 || (code >= 520 && code <= 530)) {
       return 'The Horizon server is offline right now. Try again in a few minutes.';
     }
-    if (code == 401 || code == 403) return 'Your login has expired. Log out and back in.';
-    final msg = e.response['message'];
-    if (msg is String && msg.isNotEmpty) return msg;
+    if (code == 401) return 'Your login has expired. Log out and back in.';
+    final reason = serverReason(e.response);
+    if (reason != null) return reason;
   }
   return 'Something went wrong. Please try again.';
+}
+
+/// The most specific reason in a PocketBase error body: a field's own message
+/// (e.g. the photo's file type) beats the generic "Failed to create record."
+String? serverReason(Map? response) {
+  final fields = response?['data'];
+  if (fields is Map) {
+    for (final f in fields.values) {
+      if (f is Map && f['message'] is String) return f['message'] as String;
+    }
+  }
+  final msg = response?['message'];
+  return msg is String && msg.isNotEmpty ? msg : null;
 }

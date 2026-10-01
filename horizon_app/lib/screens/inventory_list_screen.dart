@@ -1,10 +1,8 @@
-import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../photo.dart';
 import '../theme.dart';
 import 'package:pocketbase/pocketbase.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:http/http.dart' as http;
 import '../services/pocketbase_service.dart';
 
 class InventoryListScreen extends StatefulWidget {
@@ -23,7 +21,6 @@ class InventoryListScreen extends StatefulWidget {
 
 class _InventoryListScreenState extends State<InventoryListScreen> {
   final _pbService = PocketBaseService();
-  final _imagePicker = ImagePicker();
   List<RecordModel> _inventoryItems = [];
   bool _isLoading = true;
 
@@ -69,7 +66,30 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
     }
   }
 
-  void _showActionBottomSheet(RecordModel item) {
+  /// How many of [item] the signed-in user has out: their check-outs minus their returns.
+  Future<int> _heldByMe(RecordModel item) async {
+    final me = _pbService.currentUser?.id;
+    if (me == null) return 0;
+    try {
+      final logs = await _pbService.client.collection('inventory_logs').getFullList(
+            filter: _pbService.client.filter(
+              'user = {:me} && item = {:item} && '
+              '(action = "Checked Out" || action = "Returned" || action = "Returned Damaged")',
+              {'me': me, 'item': item.id},
+            ),
+            fields: 'action,quantity',
+          );
+      return logs.fold<int>(0, (n, l) =>
+          n + (l.getStringValue('action') == 'Checked Out' ? 1 : -1) * l.getIntValue('quantity'));
+    } catch (_) {
+      return 0; // can't tell: hide Return rather than offer one the server would refuse
+    }
+  }
+
+  Future<void> _showActionBottomSheet(RecordModel item) async {
+    final held = await _heldByMe(item);
+    if (!mounted) return;
+    final isAdmin = _pbService.isAdmin;
     final quantityController = TextEditingController();
     final notesController = TextEditingController();
     String? selectedAction;
@@ -125,7 +145,8 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Available: ${item.data['available_quantity']} / ${item.data['total_quantity']}',
+                      'Available: ${item.data['available_quantity']} / ${item.data['total_quantity']}'
+                      '${held > 0 ? '  ·  You have $held' : ''}',
                       style: TextStyle(
                         fontSize: 14,
                         color: C.muted,
@@ -152,59 +173,11 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                         maxLines: 3,
                       ),
                       const SizedBox(height: 16),
-                      OutlinedButton.icon(
-                        onPressed: () async {
-                          try {
-                            final XFile? image = await _imagePicker.pickImage(
-                              source: ImageSource.gallery,
-                              maxWidth: 1920,
-                              maxHeight: 1080,
-                              imageQuality: 85,
-                            );
-                            setModalState(() {
-                              selectedImage = image;
-                            });
-                          } catch (e) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Failed to pick image: ${e.toString()}'),
-                                backgroundColor: C.danger,
-                              ),
-                            );
-                          }
-                          }
-                        },
-                        icon: const Icon(Icons.photo_camera),
-                        label: Text(selectedImage == null 
-                            ? 'Upload Photo (Optional)' 
-                            : 'Photo Selected'),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.all(12),
-                        ),
+                      PhotoField(
+                        photo: selectedImage,
+                        label: 'Add photo of the damage (optional)',
+                        onChanged: (p) => setModalState(() => selectedImage = p),
                       ),
-                      if (selectedImage != null) ...[
-                        const SizedBox(height: 8),
-                        Container(
-                          height: 100,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: C.muted),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: kIsWeb
-                                ? Image.network(
-                                    selectedImage!.path,
-                                    fit: BoxFit.cover,
-                                  )
-                                : Image.file(
-                                    File(selectedImage!.path),
-                                    fit: BoxFit.cover,
-                                  ),
-                          ),
-                        ),
-                      ],
                     ],
                     const SizedBox(height: 16),
                     Row(
@@ -215,16 +188,20 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                             child: label('Checked Out', 'Check Out'),
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: busy != null ? null : () => submit('Returned'),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 14),
+                        if (held > 0) ...[
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: busy != null ? null : () => submit('Returned'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: C.ok,
+                                side: BorderSide(color: C.ok),
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                              ),
+                              child: label('Returned', 'Return ($held)'),
                             ),
-                            child: label('Returned', 'Return'),
                           ),
-                        ),
+                        ],
                         const SizedBox(width: 8),
                         Expanded(
                           child: OutlinedButton(
@@ -248,6 +225,15 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                         ),
                       ],
                     ),
+                    if (isAdmin) ...[
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: busy != null ? null : () => submit('Restocked'),
+                        icon: const Icon(Icons.add_box_outlined, size: 18),
+                        label: label('Restocked', 'Restock'),
+                        style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12)),
+                      ),
+                    ],
                     const SizedBox(height: 16),
                   ],
                 ),
@@ -297,14 +283,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
           'action': action,
           if (notes != null && notes.isNotEmpty) 'notes': notes,
         },
-        files: [
-          if (photo != null)
-            http.MultipartFile.fromBytes(
-              'photo',
-              await photo.readAsBytes(),
-              filename: photo.name,
-            ),
-        ],
+        files: [if (photo != null) await photoPart(photo)],
       );
 
       _actionDone(action);

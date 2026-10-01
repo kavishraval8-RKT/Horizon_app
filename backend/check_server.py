@@ -78,9 +78,19 @@ mine = call("GET", "/api/collections/inventory_logs/records", member)[1]["items"
 assert len(mine) == 3 and all(l["user"] == member_id for l in mine), mine
 assert len(call("GET", "/api/collections/inventory_logs/records", admin)[1]["items"]) == 4
 assert log("Returned", 1, user=admin_id) == 400  # can't return someone else's checkout either
-s, _ = call("POST", "/api/collections/inventory_logs/records", admin,
-            {"item": item["id"], "user": admin_id, "quantity": 2, "action": "Returned"})
-assert s == 200 and available() == 5  # admins may return beyond their own (stock correction), still capped at total
+def admin_log(action, qty, **extra):
+    return call("POST", "/api/collections/inventory_logs/records", admin,
+                {"item": item["id"], "user": admin_id, "quantity": qty, "action": action, **extra})
+
+
+assert admin_log("Returned", 2)[0] == 400 and available() == 3   # returns are per person, admins too
+assert log("Restocked", 1) == 403 and available() == 3           # members can't restock
+s, r = admin_log("Restocked", 2, batch="tag123")                  # admins can, recorded as Restocked
+assert s == 200 and r["action"] == "Restocked" and r["batch"] == "tag123" and available() == 5
+assert admin_log("Restocked", 1)[0] == 400 and available() == 5  # never above total
+s, d = call("POST", "/api/collections/inventory_logs/records", member,
+            {"item": item["id"], "user": member_id, "quantity": 1, "action": "Restocked"})
+assert s == 403 and "admins" in d["message"], d  # item is full: member still hears it's admin-only
 
 # requests: members create Pending only, see only their own, can't change status
 body = {"requested_by": member_id, "item_name": "Arduino", "quantity": 1, "department": "Avionics", "justification": "x"}
@@ -147,5 +157,28 @@ s, d = call("POST", "/api/batch", member, {"requests": [
     {"method": "PATCH", "url": f"/api/collections/inventory/records/{bolt['id']}", "body": {"available_quantity": 99}}]})
 assert s == 400 and stock(bolt) == 10  # can't edit stock directly via batch either
 assert batch([(bolt, 4), (nut, 1)])[0] == 200 and stock(bolt) == 6 and stock(nut) == 0
+
+# returning a broken part: leaves the member's hands, doesn't go back on the shelf
+s, kit = call("POST", "/api/collections/inventory/records", admin,
+              {"name": "Kit", "department": "Avionics", "total_quantity": 5, "available_quantity": 5})
+
+
+def kit_log(action, qty, **extra):
+    return call("POST", "/api/collections/inventory_logs/records", member,
+                {"item": kit["id"], "user": member_id, "quantity": qty, "action": action, **extra})
+
+
+assert kit_log("Checked Out", 3)[0] == 200 and stock(kit) == 2
+assert kit_log("Returned Damaged", 1, notes="pin bent")[0] == 200 and stock(kit) == 2  # not back on the shelf
+assert kit_log("Returned", 3)[0] == 400                                               # only 2 left out now
+assert kit_log("Returned", 2)[0] == 200 and stock(kit) == 4                           # 5 total = 4 shelf + 1 broken
+assert kit_log("Returned Damaged", 1)[0] == 400                                       # nothing left out
+
+# photos are private: no file token, no photo
+s, logged = call("POST", "/api/collections/inventory_logs/records", member,
+                 {"item": kit["id"], "user": member_id, "quantity": 1, "action": "Checked Out"})
+coll = call("GET", "/api/collections/inventory_logs", su)[1]
+photo_field = [f for f in coll["fields"] if f["name"] == "photo"][0]
+assert photo_field["protected"] and photo_field["maxSize"] == 5 * 1024 * 1024, photo_field
 
 print("all server checks passed")
