@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../theme.dart';
 import 'package:pocketbase/pocketbase.dart';
 import '../services/pocketbase_service.dart';
@@ -447,12 +448,21 @@ class _RequestsScreenState extends State<RequestsScreen> {
                                     ),
                                   ),
                                   const SizedBox(height: 4),
-                                  Text(
-                                    link,
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: C.accent,
-                                      decoration: TextDecoration.underline,
+                                  GestureDetector(
+                                    onTap: () {
+                                      // Member-entered link: only ever open web pages, never other app schemes
+                                      final uri = Uri.tryParse(link);
+                                      if (uri != null && (uri.scheme == 'https' || uri.scheme == 'http')) {
+                                        launchUrl(uri, mode: LaunchMode.externalApplication);
+                                      }
+                                    },
+                                    child: Text(
+                                      link,
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: C.accent,
+                                        decoration: TextDecoration.underline,
+                                      ),
                                     ),
                                   ),
                                 ],

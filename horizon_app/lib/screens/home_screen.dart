@@ -7,6 +7,7 @@ import 'progress_screen.dart';
 import 'requests_screen.dart';
 import 'admin_ledger_screen.dart';
 import 'services_screen.dart';
+import '../update_check.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -18,6 +19,12 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   final _pbService = PocketBaseService();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => checkForUpdate(context));
+  }
 
   @override
   Widget build(BuildContext context) {
