@@ -329,3 +329,37 @@ class HealthBar extends StatelessWidget {
     );
   }
 }
+
+/// A primary button that locks itself and shows a spinner until [onPressed] finishes,
+/// so a slow network can't turn one tap into two submissions.
+class SubmitButton extends StatefulWidget {
+  final Future<void> Function()? onPressed;
+  final Widget child;
+  final ButtonStyle? style;
+  const SubmitButton({super.key, required this.onPressed, required this.child, this.style});
+
+  @override
+  State<SubmitButton> createState() => _SubmitButtonState();
+}
+
+class _SubmitButtonState extends State<SubmitButton> {
+  bool _busy = false;
+
+  @override
+  Widget build(BuildContext context) => ElevatedButton(
+        style: widget.style,
+        onPressed: _busy || widget.onPressed == null
+            ? null
+            : () async {
+                setState(() => _busy = true);
+                try {
+                  await widget.onPressed!();
+                } finally {
+                  if (mounted) setState(() => _busy = false);
+                }
+              },
+        child: _busy
+            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+            : widget.child,
+      );
+}

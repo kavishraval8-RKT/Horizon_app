@@ -79,6 +79,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
 
   void _showSubmitRequestSheet() {
     final itemNameController = TextEditingController();
+    final submitId = PocketBaseService.newId(); // one record per form, even if submitted twice
     final quantityController = TextEditingController();
     final justificationController = TextEditingController();
     final linkController = TextEditingController();
@@ -168,7 +169,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    ElevatedButton(
+                    SubmitButton(
                       onPressed: () async {
                         if (itemNameController.text.trim().isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(
@@ -204,8 +205,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
                             throw Exception('User not authenticated');
                           }
 
-                          await _pbService.client.collection('procurement_requests').create(
-                            body: {
+                          await PocketBaseService.createOnce(_pbService.client.collection('procurement_requests'), submitId, {
                               'requested_by': userId,
                               'item_name': itemNameController.text.trim(),
                               'quantity': quantity,
@@ -290,7 +290,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
                   onPressed: () => Navigator.pop(context),
                   child: const Text('Cancel'),
                 ),
-                ElevatedButton(
+                SubmitButton(
                   onPressed: () async {
                     try {
                       await _pbService.client.collection('procurement_requests').update(

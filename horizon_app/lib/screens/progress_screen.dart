@@ -119,6 +119,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
 
   void _showSubmitReportSheet() {
     final tasksController = TextEditingController();
+    final submitId = PocketBaseService.newId(); // one record per form, even if submitted twice
     final blockersController = TextEditingController();
 
     showModalBottomSheet(
@@ -163,7 +164,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                   maxLines: 3,
                 ),
                 const SizedBox(height: 16),
-                ElevatedButton(
+                SubmitButton(
                   onPressed: () async {
                     if (tasksController.text.trim().isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -180,8 +181,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                         throw Exception('User not authenticated');
                       }
 
-                      await _pbService.client.collection('progress_reports').create(
-                        body: {
+                      await PocketBaseService.createOnce(_pbService.client.collection('progress_reports'), submitId, {
                           'user_id': userId,
                           'tasks_completed': tasksController.text.trim(),
                           'current_blockers': blockersController.text.trim(),

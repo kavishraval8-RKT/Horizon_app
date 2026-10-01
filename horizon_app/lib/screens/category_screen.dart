@@ -71,6 +71,7 @@ class _CategoryScreenState extends State<CategoryScreen> {
 
   void _showAddItemToNewCategoryDialog() {
     final categoryController = TextEditingController();
+    final submitId = PocketBaseService.newId(); // one record per form, even if submitted twice
     final nameController = TextEditingController();
     final quantityController = TextEditingController();
 
@@ -115,7 +116,7 @@ class _CategoryScreenState extends State<CategoryScreen> {
               onPressed: () => Navigator.pop(context),
               child: const Text('Cancel'),
             ),
-            ElevatedButton(
+            SubmitButton(
               onPressed: () async {
                 // Validate category name
                 if (categoryController.text.trim().isEmpty) {
@@ -149,8 +150,7 @@ class _CategoryScreenState extends State<CategoryScreen> {
                 }
 
                 try {
-                  await _pbService.client.collection('inventory').create(
-                    body: {
+                  await PocketBaseService.createOnce(_pbService.client.collection('inventory'), submitId, {
                       'name': nameController.text.trim(),
                       'department': widget.department,
                       'category': categoryController.text.trim(),

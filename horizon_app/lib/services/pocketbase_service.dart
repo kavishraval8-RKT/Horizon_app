@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:pocketbase/pocketbase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -89,6 +90,28 @@ class PocketBaseService {
       return role == 'admin';
     } catch (e) {
       return false;
+    }
+  }
+
+  /// A record id made on the device when a form opens and sent with the create.
+  /// If the same submit reaches the server twice (double tap, retry after a lost
+  /// reply), the second is rejected as a duplicate instead of creating a copy.
+  static String newId() {
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    final r = Random.secure();
+    return List.generate(15, (_) => chars[r.nextInt(chars.length)]).join();
+  }
+
+  /// True when the server says this id already exists, i.e. the submit already went through.
+  static bool isDuplicate(Object e) =>
+      e is ClientException && (e.response['data'] as Map?)?['id']?['code'] == 'validation_not_unique';
+
+  /// Create a record at most once: a repeat of the same [id] counts as success.
+  static Future<void> createOnce(RecordService collection, String id, Map<String, dynamic> body) async {
+    try {
+      await collection.create(body: {...body, 'id': id});
+    } catch (e) {
+      if (!isDuplicate(e)) rethrow;
     }
   }
 }

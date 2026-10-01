@@ -74,6 +74,8 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
     final notesController = TextEditingController();
     String? selectedAction;
     XFile? selectedImage;
+    String? busy; // the action being submitted; all buttons lock until the server answers
+    final ids = <String, String>{}; // one record id per action, reused if it's resubmitted
 
     showModalBottomSheet(
       context: context,
@@ -82,6 +84,25 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setModalState) {
             final showNotesAndPhoto = selectedAction == 'Report Damaged';
+
+            Future<void> submit(String action) async {
+              if (busy != null) return;
+              setModalState(() => busy = action);
+              await _handleAction(
+                item,
+                action,
+                quantityController.text,
+                notes: notesController.text,
+                photo: selectedImage,
+                id: ids.putIfAbsent(action, PocketBaseService.newId),
+              );
+              // On success the sheet has closed; on failure unlock so they can fix and retry
+              if (context.mounted) setModalState(() => busy = null);
+            }
+
+            Widget label(String action, String text) => busy == action
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                : Text(text);
             
             return Padding(
               padding: EdgeInsets.only(
@@ -190,61 +211,39 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                       children: [
                         Expanded(
                           child: ElevatedButton(
-                            onPressed: () {
-                              _handleAction(
-                                item,
-                                'Checked Out',
-                                quantityController.text,
-                                notes: notesController.text,
-                                photo: selectedImage,
-                              );
-                            },
-                            child: const Text('Check Out'),
+                            onPressed: busy != null ? null : () => submit('Checked Out'),
+                            child: label('Checked Out', 'Check Out'),
                           ),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: OutlinedButton(
-                            onPressed: () {
-                              _handleAction(
-                                item,
-                                'Returned',
-                                quantityController.text,
-                                notes: notesController.text,
-                                photo: selectedImage,
-                              );
-                            },
+                            onPressed: busy != null ? null : () => submit('Returned'),
                             style: OutlinedButton.styleFrom(
                               padding: const EdgeInsets.symmetric(vertical: 14),
                             ),
-                            child: const Text('Return'),
+                            child: label('Returned', 'Return'),
                           ),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: OutlinedButton(
                             // First tap reveals notes + photo, second tap submits
-                            onPressed: () {
-                              if (!showNotesAndPhoto) {
-                                setModalState(() {
-                                  selectedAction = 'Report Damaged';
-                                });
-                                return;
-                              }
-                              _handleAction(
-                                item,
-                                'Damaged',
-                                quantityController.text,
-                                notes: notesController.text,
-                                photo: selectedImage,
-                              );
-                            },
+                            onPressed: busy != null
+                                ? null
+                                : () {
+                                    if (!showNotesAndPhoto) {
+                                      setModalState(() => selectedAction = 'Report Damaged');
+                                      return;
+                                    }
+                                    submit('Damaged');
+                                  },
                             style: OutlinedButton.styleFrom(
                               foregroundColor: C.danger,
                               side: BorderSide(color: C.danger),
                               padding: const EdgeInsets.symmetric(vertical: 14),
                             ),
-                            child: Text(showNotesAndPhoto ? 'Submit' : 'Damaged'),
+                            child: label('Damaged', showNotesAndPhoto ? 'Submit' : 'Damaged'),
                           ),
                         ),
                       ],
@@ -266,6 +265,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
     String quantityText, {
     String? notes,
     XFile? photo,
+    String? id,
   }) async {
     // Validate quantity
     final quantity = int.tryParse(quantityText);
@@ -290,6 +290,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
       // available_quantity in the same transaction as this log entry.
       await _pbService.client.collection('inventory_logs').create(
         body: {
+          'id': ?id,
           'item': item.id,
           'user': currentUserId,
           'quantity': quantity,
@@ -306,16 +307,9 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
         ],
       );
 
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('$action successful'),
-          ),
-        );
-        _fetchInventory();
-      }
+      _actionDone(action);
     } catch (e) {
+      if (PocketBaseService.isDuplicate(e)) return _actionDone(action);
       if (mounted) {
         // Show the server's reason (e.g. "Only 2 available.") rather than the raw exception
         final reason = e is ClientException ? e.response['message'] ?? e : e;
@@ -329,8 +323,16 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
     }
   }
 
+  void _actionDone(String action) {
+    if (!mounted) return;
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$action recorded')));
+    _fetchInventory();
+  }
+
   void _showAddItemDialog() {
     final nameController = TextEditingController();
+    final submitId = PocketBaseService.newId(); // one record per form, even if submitted twice
     final quantityController = TextEditingController();
 
     showDialog(
@@ -366,7 +368,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                   onPressed: () => Navigator.pop(context),
                   child: const Text('Cancel'),
                 ),
-                ElevatedButton(
+                SubmitButton(
                   onPressed: () async {
                     if (nameController.text.trim().isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -388,8 +390,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                     }
 
                     try {
-                      await _pbService.client.collection('inventory').create(
-                        body: {
+                      await PocketBaseService.createOnce(_pbService.client.collection('inventory'), submitId, {
                           'name': nameController.text.trim(),
                           'department': widget.department,
                           'category': widget.category == 'Uncategorized' ? '' : widget.category,
@@ -512,8 +513,8 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
               onPressed: () => Navigator.pop(context),
               child: const Text('Cancel'),
             ),
-            ElevatedButton(
-              onPressed: () {
+            SubmitButton(
+              onPressed: () async {
                 final name = nameController.text.trim();
                 final newTotal = int.tryParse(totalController.text);
                 // Keep the checked-out count the same: shift available by the change in total.
@@ -528,7 +529,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                   );
                   return;
                 }
-                run(
+                await run(
                   () => _pbService.client.collection('inventory').update(
                     item.id,
                     body: {
