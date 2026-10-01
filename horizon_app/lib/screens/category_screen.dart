@@ -246,9 +246,11 @@ class _CategoryScreenState extends State<CategoryScreen> {
           ),
         ),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           child: Row(
             children: [
+              IconTile(categoryIcon(category), C.dept(widget.department), size: 36),
+              const SizedBox(width: 14),
               Expanded(
                 child: Text(
                   category,

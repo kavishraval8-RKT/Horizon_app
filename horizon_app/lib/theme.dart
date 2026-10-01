@@ -7,6 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 class Palette {
   final Brightness brightness;
   final Color bg, surface, line, text, muted, accent, onAccent, ok, warn, danger;
+  /// Department identity: telemetry cyan (avionics), anodized violet (mechanical)
+  final Color avionics, mechanical;
   const Palette({
     required this.brightness,
     required this.bg,
@@ -19,6 +21,8 @@ class Palette {
     required this.ok,
     required this.warn,
     required this.danger,
+    required this.avionics,
+    required this.mechanical,
   });
 }
 
@@ -34,6 +38,8 @@ const darkPalette = Palette(
   ok: Color(0xFF7BC47F),
   warn: Color(0xFFE5B33B),
   danger: Color(0xFFE5484D),
+  avionics: Color(0xFF4CC2E6),
+  mechanical: Color(0xFFB59CFF),
 );
 
 const lightPalette = Palette(
@@ -48,6 +54,8 @@ const lightPalette = Palette(
   ok: Color(0xFF2E7D32),
   warn: Color(0xFFA86B00),
   danger: Color(0xFFC62828),
+  avionics: Color(0xFF0A7BA3), // darkened to keep 4.5:1 on paper
+  mechanical: Color(0xFF6A4BD6),
 );
 
 /// Current colours. main.dart swaps [p] and rebuilds the app when the appearance changes.
@@ -62,7 +70,39 @@ class C {
   static Color get ok => p.ok;
   static Color get warn => p.warn;
   static Color get danger => p.danger;
+
+  /// A colour washed into the card surface, for icon tiles and track backgrounds.
+  static Color tint(Color c, [double amount = 0.16]) => Color.lerp(p.surface, c, amount)!;
+
+  static Color dept(String department) =>
+      department == 'Mechanical' ? p.mechanical : (department == 'Avionics' ? p.avionics : p.muted);
 }
+
+IconData deptIcon(String department) =>
+    department == 'Mechanical' ? Icons.precision_manufacturing_outlined : Icons.memory_outlined;
+
+/// Category icons by what the word usually means in a rocketry store; folder otherwise.
+IconData categoryIcon(String category) {
+  final c = category.toLowerCase();
+  if (c.contains('sensor')) return Icons.sensors;
+  if (c.contains('radio') || c.contains('telemetry') || c.contains('antenna')) return Icons.settings_input_antenna;
+  if (c.contains('computer') || c.contains('board') || c.contains('electronic')) return Icons.developer_board;
+  if (c.contains('batter') || c.contains('power')) return Icons.battery_charging_full;
+  if (c.contains('fasten') || c.contains('screw') || c.contains('bolt')) return Icons.hardware_outlined;
+  if (c.contains('tool')) return Icons.handyman_outlined;
+  if (c.contains('motor') || c.contains('propuls')) return Icons.local_fire_department_outlined;
+  if (c.contains('recovery') || c.contains('parachute')) return Icons.paragliding;
+  if (c.contains('structure') || c.contains('airframe') || c.contains('tube')) return Icons.view_in_ar_outlined;
+  if (c == 'uncategorized') return Icons.inbox_outlined;
+  return Icons.folder_outlined;
+}
+
+/// Durations collapse to zero when the phone's "remove animations" setting is on.
+Duration motion(BuildContext context, int ms) =>
+    MediaQuery.of(context).disableAnimations ? Duration.zero : Duration(milliseconds: ms);
+
+/// Confident deceleration for arrivals (no bounce).
+const easeOutExpo = Cubic(0.16, 1, 0.3, 1);
 
 /// Appearance setting (System / Dark / Light), saved on the device.
 final themeMode = ValueNotifier<ThemeMode>(ThemeMode.dark);
@@ -183,16 +223,109 @@ ThemeData buildTheme(Palette p) {
 class StatusTag extends StatelessWidget {
   final String label;
   final Color color;
-  const StatusTag(this.label, this.color, {super.key});
+  final IconData? icon;
+  const StatusTag(this.label, this.color, {super.key, this.icon});
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        padding: const EdgeInsets.fromLTRB(7, 4, 9, 4),
         decoration: BoxDecoration(
-          border: Border.all(color: color.withValues(alpha: 0.6)),
-          borderRadius: BorderRadius.circular(3),
+          color: C.tint(color, 0.14),
+          borderRadius: BorderRadius.circular(4),
         ),
-        child: Text(label.toUpperCase(),
-            style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.8)),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 13, color: color),
+              const SizedBox(width: 4),
+            ],
+            Text(label,
+                style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 0.2)),
+          ],
+        ),
       );
+}
+
+/// An icon on a soft wash of its own colour. The one decorative device in the app:
+/// colour here always means something (department, status, destination).
+class IconTile extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final double size;
+  const IconTile(this.icon, this.color, {super.key, this.size = 40});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: C.tint(color),
+          borderRadius: BorderRadius.circular(size * 0.25),
+        ),
+        child: Icon(icon, color: color, size: size * 0.55),
+      );
+}
+
+/// Section heading in sentence case, with an optional muted count.
+class SectionTitle extends StatelessWidget {
+  final String title;
+  final String? trailing;
+  const SectionTitle(this.title, {super.key, this.trailing});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(top: 28, bottom: 12),
+        child: Row(
+          children: [
+            Text(title, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: C.text)),
+            if (trailing != null) ...[
+              const SizedBox(width: 8),
+              Text(trailing!, style: mono.copyWith(color: C.muted, fontSize: 13)),
+            ],
+          ],
+        ),
+      );
+}
+
+/// Segmented ok / low / out bar that fills from the left when it first appears.
+class HealthBar extends StatelessWidget {
+  final int ok, low, out;
+  final Color okColor;
+  final double height;
+  const HealthBar(
+      {super.key, required this.ok, required this.low, required this.out, required this.okColor, this.height = 6});
+
+  @override
+  Widget build(BuildContext context) {
+    final total = ok + low + out;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(height / 2),
+      child: Container(
+        height: height,
+        color: C.tint(C.muted, 0.18),
+        alignment: Alignment.centerLeft,
+        child: total == 0
+            ? null
+            : TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0, end: 1),
+                duration: motion(context, 700),
+                curve: easeOutExpo,
+                builder: (context, t, _) => FractionallySizedBox(
+                  widthFactor: t,
+                  child: Row(
+                    children: [
+                      // Small gaps between segments read as an instrument, not a blob
+                      if (ok > 0) Expanded(flex: ok, child: Container(color: okColor)),
+                      if (ok > 0 && low + out > 0) const SizedBox(width: 2),
+                      if (low > 0) Expanded(flex: low, child: Container(color: C.warn)),
+                      if (low > 0 && out > 0) const SizedBox(width: 2),
+                      if (out > 0) Expanded(flex: out, child: Container(color: C.danger)),
+                    ],
+                  ),
+                ),
+              ),
+      ),
+    );
+  }
 }

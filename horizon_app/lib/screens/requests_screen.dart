@@ -330,6 +330,14 @@ class _RequestsScreenState extends State<RequestsScreen> {
     );
   }
 
+  IconData _statusIcon(String status) => switch (status) {
+        'Approved' => Icons.check,
+        'Rejected' => Icons.close,
+        'Ordered' => Icons.local_shipping_outlined,
+        'Delivered' => Icons.inventory_2_outlined,
+        _ => Icons.schedule,
+      };
+
   Color _getStatusColor(String status) {
     switch (status) {
       case 'Pending':
@@ -339,9 +347,9 @@ class _RequestsScreenState extends State<RequestsScreen> {
       case 'Rejected':
         return C.danger;
       case 'Ordered':
-        return C.accent;
+        return C.text; // in transit: neutral, the truck icon carries it
       case 'Delivered':
-        return C.text;
+        return C.muted; // done: recedes
       default:
         return C.muted;
     }
@@ -422,7 +430,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
                                         ],
                                       ),
                                     ),
-                                    StatusTag(status, _getStatusColor(status)),
+                                    StatusTag(status, _getStatusColor(status), icon: _statusIcon(status)),
                                   ],
                                 ),
                                 const Divider(height: 24),

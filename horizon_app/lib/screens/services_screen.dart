@@ -4,6 +4,16 @@ import 'package:pocketbase/pocketbase.dart';
 import '../services/pocketbase_service.dart';
 import '../theme.dart';
 
+IconData _equipmentIcon(String name) {
+  final n = name.toLowerCase();
+  if (n.contains('print')) return Icons.print_outlined;
+  if (n.contains('solder')) return Icons.electrical_services;
+  if (n.contains('drill') || n.contains('lathe') || n.contains('mill')) return Icons.precision_manufacturing_outlined;
+  if (n.contains('laser') || n.contains('cut')) return Icons.content_cut;
+  if (n.contains('scope') || n.contains('meter')) return Icons.monitor_heart_outlined;
+  return Icons.handyman_outlined;
+}
+
 String _reason(Object e) =>
     e is ClientException ? (e.response['message'] ?? '$e').toString() : '$e';
 
@@ -149,9 +159,11 @@ class _ServicesScreenState extends State<ServicesScreen> {
                         ),
                         onLongPress: isAdmin ? () => _deleteEquipment(item) : null,
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                           child: Row(
                             children: [
+                              IconTile(_equipmentIcon(item.getStringValue('name')), C.text, size: 40),
+                              const SizedBox(width: 14),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,

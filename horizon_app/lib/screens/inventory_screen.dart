@@ -74,29 +74,55 @@ class _InventoryScreenState extends State<InventoryScreen> {
     ));
   }
 
-  Widget _label(String text) => Padding(
-        padding: const EdgeInsets.only(top: 24, bottom: 10),
-        child: Text(text, style: TextStyle(color: C.muted, fontSize: 12, letterSpacing: 1.2)),
-      );
+  /// The signature moment: stock health as a gauge that fills on load,
+  /// split into in-stock / running low / out segments.
+  Widget _gauge() {
+    final out = _items.where(_out).length;
+    final low = _items.where(_low).length;
+    final ok = _items.length - out - low;
+    final headline = _items.isEmpty
+        ? 'No parts yet'
+        : (out + low == 0
+            ? 'All ${_items.length} parts in stock'
+            : '${out + low} of ${_items.length} parts need restock');
 
-  Widget _readout(String label, int value, Color color) => Expanded(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: C.surface,
-            border: Border.all(color: C.line),
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    Widget legend(IconData icon, Color color, int n, String label) => Expanded(
+          child: Row(
             children: [
-              Text('$value', style: mono.copyWith(fontSize: 26, fontWeight: FontWeight.w600, color: color)),
-              const SizedBox(height: 2),
-              Text(label, style: TextStyle(color: C.muted, fontSize: 11, letterSpacing: 1)),
+              Icon(icon, size: 16, color: color),
+              const SizedBox(width: 6),
+              Text('$n', style: mono.copyWith(fontSize: 15, fontWeight: FontWeight.w600, color: C.text)),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(label,
+                    overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: C.muted)),
+              ),
             ],
           ),
+        );
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(headline, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 12),
+            HealthBar(ok: ok, low: low, out: out, okColor: C.ok, height: 8),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                legend(Icons.check_circle_outline, C.ok, ok, 'in stock'),
+                legend(Icons.trending_down, C.warn, low, 'low'),
+                legend(Icons.remove_circle_outline, C.danger, out, 'out'),
+              ],
+            ),
+          ],
         ),
-      );
+      ),
+    );
+  }
 
   Widget _itemRow(RecordModel r) {
     final out = _out(r);
@@ -105,9 +131,15 @@ class _InventoryScreenState extends State<InventoryScreen> {
       child: InkWell(
         onTap: () => _openItem(r),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           child: Row(
             children: [
+              IconTile(
+                categoryIcon(r.getStringValue('category').isEmpty ? 'uncategorized' : r.getStringValue('category')),
+                C.dept(r.getStringValue('department')),
+                size: 36,
+              ),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -170,60 +202,63 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     ),
                   ),
                   if (query.isNotEmpty) ...[
-                    _label('${results.length} RESULT${results.length == 1 ? '' : 'S'}'),
+                    SectionTitle('Results', trailing: '${results.length}'),
+                    if (results.isEmpty)
+                      Text('No part matches "${_search.text.trim()}".', style: TextStyle(color: C.muted)),
                     for (final r in results) _itemRow(r),
                   ] else ...[
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        _readout('ITEMS', _items.length, C.text),
-                        const SizedBox(width: 8),
-                        _readout('LOW', _items.where(_low).length, C.warn),
-                        const SizedBox(width: 8),
-                        _readout('OUT', _items.where(_out).length, C.danger),
-                      ],
-                    ),
-                    _label('DEPARTMENTS'),
+                    const SizedBox(height: 12),
+                    _gauge(),
+                    const SectionTitle('Departments'),
                     for (final (name, blurb) in _departments) ...() {
-                      final dept = _items.where((r) => r.getStringValue('department') == name);
-                      final attention = dept.where((r) => _out(r) || _low(r)).length;
+                      final dept = _items.where((r) => r.getStringValue('department') == name).toList();
+                      final out = dept.where(_out).length;
+                      final low = dept.where(_low).length;
+                      final tone = C.dept(name);
                       return [
                         Card(
-                          margin: const EdgeInsets.only(bottom: 8),
+                          margin: const EdgeInsets.only(bottom: 10),
                           child: InkWell(
                             onTap: () => _open(CategoryScreen(department: name)),
                             child: Padding(
-                              padding: const EdgeInsets.all(18),
-                              child: Row(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
                                 children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(name,
-                                            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
-                                        const SizedBox(height: 4),
-                                        Text(blurb, style: TextStyle(color: C.muted, fontSize: 13)),
-                                        const SizedBox(height: 10),
-                                        Text.rich(
-                                          TextSpan(children: [
-                                            TextSpan(text: '${dept.length}', style: mono),
-                                            const TextSpan(text: ' items'),
-                                            if (attention > 0) ...[
-                                              const TextSpan(text: '  ·  '),
-                                              TextSpan(
-                                                text: '$attention',
-                                                style: mono.copyWith(color: C.warn),
-                                              ),
-                                              TextSpan(text: ' need restock', style: TextStyle(color: C.warn)),
-                                            ],
-                                          ]),
-                                          style: TextStyle(fontSize: 13, color: C.muted),
+                                  Row(
+                                    children: [
+                                      IconTile(deptIcon(name), tone, size: 44),
+                                      const SizedBox(width: 14),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(name,
+                                                style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w600)),
+                                            const SizedBox(height: 2),
+                                            Text(blurb, style: TextStyle(color: C.muted, fontSize: 13)),
+                                          ],
                                         ),
-                                      ],
-                                    ),
+                                      ),
+                                      Icon(Icons.arrow_forward, color: tone, size: 20),
+                                    ],
                                   ),
-                                  Icon(Icons.arrow_forward, color: C.muted, size: 20),
+                                  const SizedBox(height: 14),
+                                  HealthBar(ok: dept.length - out - low, low: low, out: out, okColor: tone, height: 4),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Text('${dept.length}', style: mono.copyWith(fontSize: 13)),
+                                      Text(' parts', style: TextStyle(fontSize: 13, color: C.muted)),
+                                      const Spacer(),
+                                      if (out + low > 0) ...[
+                                        Icon(Icons.trending_down, size: 14, color: C.warn),
+                                        const SizedBox(width: 4),
+                                        Text('${out + low} need restock',
+                                            style: TextStyle(fontSize: 13, color: C.warn)),
+                                      ] else
+                                        Text('all stocked', style: TextStyle(fontSize: 13, color: C.muted)),
+                                    ],
+                                  ),
                                 ],
                               ),
                             ),
@@ -231,9 +266,15 @@ class _InventoryScreenState extends State<InventoryScreen> {
                         ),
                       ];
                     }(),
-                    _label('RUNNING LOW'),
+                    SectionTitle('Running low', trailing: lowList.isEmpty ? null : '${lowList.length}'),
                     if (lowList.isEmpty)
-                      Text('Everything is well stocked.', style: TextStyle(color: C.muted))
+                      Row(
+                        children: [
+                          Icon(Icons.check_circle_outline, color: C.ok, size: 20),
+                          const SizedBox(width: 8),
+                          Text('Everything is well stocked.', style: TextStyle(color: C.muted)),
+                        ],
+                      )
                     else
                       for (final r in lowList.take(6)) _itemRow(r),
                   ],
