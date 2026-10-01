@@ -109,7 +109,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to load reports: ${e.toString()}'),
+            content: Text('Couldn\'t load reports. ${friendlyError(e)}'),
             backgroundColor: C.danger,
           ),
         );

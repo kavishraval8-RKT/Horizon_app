@@ -69,7 +69,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to load requests: ${e.toString()}'),
+            content: Text('Couldn\'t load requests. ${friendlyError(e)}'),
             backgroundColor: C.danger,
           ),
         );

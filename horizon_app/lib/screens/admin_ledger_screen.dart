@@ -46,7 +46,7 @@ class _AdminLedgerScreenState extends State<AdminLedgerScreen> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to load logs: ${e.toString()}'),
+            content: Text('Couldn\'t load logs. ${friendlyError(e)}'),
             backgroundColor: C.danger,
           ),
         );

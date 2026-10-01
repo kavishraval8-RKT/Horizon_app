@@ -44,7 +44,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load: ${_reason(e)}'), backgroundColor: C.danger),
+          SnackBar(content: Text("Couldn't load. ${friendlyError(e)}"), backgroundColor: C.danger),
         );
       }
     } finally {
@@ -240,7 +240,7 @@ class _EquipmentBookingsScreenState extends State<EquipmentBookingsScreen> {
           );
       if (mounted) setState(() => _bookings = items);
     } catch (e) {
-      if (mounted) _toast('Failed to load: ${_reason(e)}', error: true);
+      if (mounted) _toast("Couldn't load. ${friendlyError(e)}", error: true);
     } finally {
       if (mounted) setState(() => _loading = false);
     }

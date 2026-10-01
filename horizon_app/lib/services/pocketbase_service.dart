@@ -115,3 +115,19 @@ class PocketBaseService {
     }
   }
 }
+
+/// Turns a failed request into something a member can act on.
+String friendlyError(Object e) {
+  if (e is ClientException) {
+    final code = e.statusCode;
+    if (code == 0) return 'No internet connection. Check your Wi-Fi or data and try again.';
+    // 502/503/504 from the server, 520-530 from Cloudflare when the club server is off or unreachable
+    if (code == 502 || code == 503 || code == 504 || (code >= 520 && code <= 530)) {
+      return 'The Horizon server is offline right now. Try again in a few minutes.';
+    }
+    if (code == 401 || code == 403) return 'Your login has expired. Log out and back in.';
+    final msg = e.response['message'];
+    if (msg is String && msg.isNotEmpty) return msg;
+  }
+  return 'Something went wrong. Please try again.';
+}

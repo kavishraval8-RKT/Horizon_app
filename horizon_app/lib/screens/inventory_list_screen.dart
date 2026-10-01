@@ -61,7 +61,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to load inventory: ${e.toString()}'),
+            content: Text('Couldn\'t load inventory. ${friendlyError(e)}'),
             backgroundColor: C.danger,
           ),
         );

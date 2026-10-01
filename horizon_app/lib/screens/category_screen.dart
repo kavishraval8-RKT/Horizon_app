@@ -61,7 +61,7 @@ class _CategoryScreenState extends State<CategoryScreen> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to load categories: ${e.toString()}'),
+            content: Text('Couldn\'t load categories. ${friendlyError(e)}'),
             backgroundColor: C.danger,
           ),
         );

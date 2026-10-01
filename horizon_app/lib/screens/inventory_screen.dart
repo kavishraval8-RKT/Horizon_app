@@ -23,6 +23,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
   final _search = TextEditingController();
   List<RecordModel> _items = [];
   bool _loading = true;
+  String? _error; // set when the last load failed
 
   @override
   void initState() {
@@ -44,11 +45,17 @@ class _InventoryScreenState extends State<InventoryScreen> {
             sort: 'name',
             fields: 'id,name,department,category,available_quantity,total_quantity',
           );
-      if (mounted) setState(() => _items = items);
+      if (mounted) setState(() {
+        _items = items;
+        _error = null;
+      });
     } catch (e) {
-      if (mounted) {
+      if (!mounted) return;
+      setState(() => _error = friendlyError(e));
+      // Already showing data from earlier: keep it on screen and just say the refresh failed
+      if (_items.isNotEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load inventory: $e'), backgroundColor: C.danger),
+          SnackBar(content: Text("Couldn't refresh. $_error"), backgroundColor: C.danger),
         );
       }
     } finally {
@@ -206,6 +213,23 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     if (results.isEmpty)
                       Text('No part matches "${_search.text.trim()}".', style: TextStyle(color: C.muted)),
                     for (final r in results) _itemRow(r),
+                  ] else if (_error != null && _items.isEmpty) ...[
+                    // Never show "No parts / all stocked" when we simply couldn't ask
+                    const SizedBox(height: 48),
+                    Icon(Icons.cloud_off_outlined, size: 44, color: C.muted),
+                    const SizedBox(height: 16),
+                    Text("Can't reach Horizon",
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 8),
+                    Text(_error!, textAlign: TextAlign.center, style: TextStyle(color: C.muted)),
+                    const SizedBox(height: 20),
+                    Center(
+                      child: SubmitButton(
+                        onPressed: _load,
+                        child: const Text('Try again'),
+                      ),
+                    ),
                   ] else ...[
                     const SizedBox(height: 12),
                     _gauge(),
