@@ -55,7 +55,7 @@ cd backend
 ```bash
 cd backend
 ./pocketbase superuser upsert su@test.local testpass123 --dir /tmp/pbtest
-./pocketbase serve --dir /tmp/pbtest --http 127.0.0.1:8099
+./pocketbase serve --dir /tmp/pbtest --http 127.0.0.1:8099 --automigrate=false  # never write test edits into pb_migrations/
 python check_server.py http://127.0.0.1:8099 su@test.local testpass123
 ```
 
