@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme.dart';
 import 'package:pocketbase/pocketbase.dart';
 import 'package:intl/intl.dart';
 import '../services/pocketbase_service.dart';
@@ -46,7 +47,7 @@ class _AdminLedgerScreenState extends State<AdminLedgerScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to load logs: ${e.toString()}'),
-            backgroundColor: Colors.red,
+            backgroundColor: C.danger,
           ),
         );
       }
@@ -56,13 +57,13 @@ class _AdminLedgerScreenState extends State<AdminLedgerScreen> {
   Color _getActionColor(String action) {
     switch (action) {
       case 'Checked Out':
-        return Colors.orange;
+        return C.warn;
       case 'Returned':
-        return Colors.green;
+        return C.ok;
       case 'Damaged':
-        return Colors.red;
+        return C.danger;
       default:
-        return Colors.grey;
+        return C.muted;
     }
   }
 
@@ -149,9 +150,9 @@ class _AdminLedgerScreenState extends State<AdminLedgerScreen> {
                           ),
                           Text(
                             _formatDateTime(created),
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12,
-                              color: Colors.grey,
+                              color: C.muted,
                             ),
                           ),
                         ],
@@ -196,7 +197,7 @@ class _AdminLedgerScreenState extends State<AdminLedgerScreen> {
                       errorBuilder: (context, error, stackTrace) {
                         return Container(
                           height: 100,
-                          color: Colors.grey[200],
+                          color: C.line,
                           child: const Center(
                             child: Icon(Icons.broken_image, size: 50),
                           ),
@@ -266,10 +267,10 @@ class _AdminLedgerScreenState extends State<AdminLedgerScreen> {
               child: CircularProgressIndicator(),
             )
           : _logs.isEmpty
-              ? const Center(
+              ? Center(
                   child: Text(
                     'No logs found',
-                    style: TextStyle(fontSize: 18, color: Colors.grey),
+                    style: TextStyle(fontSize: 18, color: C.muted),
                   ),
                 )
               : RefreshIndicator(
@@ -304,25 +305,15 @@ class _AdminLedgerScreenState extends State<AdminLedgerScreen> {
                       }
 
                       return Card(
-                        margin: const EdgeInsets.only(bottom: 12.0),
+                        margin: const EdgeInsets.only(bottom: 8),
                         child: InkWell(
                           onTap: () => _showLogDetails(log),
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(4),
                           child: Padding(
                             padding: const EdgeInsets.all(16.0),
                             child: Row(
                               children: [
-                                Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: _getActionColor(action).withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Icon(
-                                    _getActionIcon(action),
-                                    color: _getActionColor(action),
-                                  ),
-                                ),
+                                Icon(_getActionIcon(action), color: _getActionColor(action), size: 20),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
@@ -360,17 +351,17 @@ class _AdminLedgerScreenState extends State<AdminLedgerScreen> {
                                       const SizedBox(height: 4),
                                       Text(
                                         _formatDateTime(created),
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           fontSize: 12,
-                                          color: Colors.grey,
+                                          color: C.muted,
                                         ),
                                       ),
                                     ],
                                   ),
                                 ),
-                                const Icon(
+                                Icon(
                                   Icons.chevron_right,
-                                  color: Colors.grey,
+                                  color: C.muted,
                                 ),
                               ],
                             ),

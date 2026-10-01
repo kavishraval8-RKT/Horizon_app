@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme.dart';
 import 'package:pocketbase/pocketbase.dart';
 import '../services/pocketbase_service.dart';
 
@@ -68,7 +69,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to load requests: ${e.toString()}'),
-            backgroundColor: Colors.red,
+            backgroundColor: C.danger,
           ),
         );
       }
@@ -113,7 +114,6 @@ class _RequestsScreenState extends State<RequestsScreen> {
                       decoration: const InputDecoration(
                         labelText: 'Item Name',
                         hintText: 'What do you need?',
-                        border: OutlineInputBorder(),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -122,7 +122,6 @@ class _RequestsScreenState extends State<RequestsScreen> {
                       decoration: const InputDecoration(
                         labelText: 'Quantity',
                         hintText: 'How many?',
-                        border: OutlineInputBorder(),
                       ),
                       keyboardType: TextInputType.number,
                     ),
@@ -131,7 +130,6 @@ class _RequestsScreenState extends State<RequestsScreen> {
                       initialValue: selectedDepartment,
                       decoration: const InputDecoration(
                         labelText: 'Department',
-                        border: OutlineInputBorder(),
                       ),
                       items: const [
                         DropdownMenuItem(
@@ -157,7 +155,6 @@ class _RequestsScreenState extends State<RequestsScreen> {
                       decoration: const InputDecoration(
                         labelText: 'Justification',
                         hintText: 'Why is this needed?',
-                        border: OutlineInputBorder(),
                       ),
                       maxLines: 3,
                     ),
@@ -167,7 +164,6 @@ class _RequestsScreenState extends State<RequestsScreen> {
                       decoration: const InputDecoration(
                         labelText: 'Purchase Link',
                         hintText: 'Where can we buy it?',
-                        border: OutlineInputBorder(),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -177,7 +173,6 @@ class _RequestsScreenState extends State<RequestsScreen> {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text('Please enter item name'),
-                              backgroundColor: Colors.orange,
                             ),
                           );
                           return;
@@ -188,7 +183,6 @@ class _RequestsScreenState extends State<RequestsScreen> {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text('Please enter valid quantity'),
-                              backgroundColor: Colors.orange,
                             ),
                           );
                           return;
@@ -198,7 +192,6 @@ class _RequestsScreenState extends State<RequestsScreen> {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text('Please enter justification'),
-                              backgroundColor: Colors.orange,
                             ),
                           );
                           return;
@@ -227,7 +220,6 @@ class _RequestsScreenState extends State<RequestsScreen> {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text('Request submitted successfully'),
-                                backgroundColor: Colors.green,
                               ),
                             );
                             _fetchRequests();
@@ -237,7 +229,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text('Failed to submit: ${e.toString()}'),
-                                backgroundColor: Colors.red,
+                                backgroundColor: C.danger,
                               ),
                             );
                           }
@@ -312,7 +304,6 @@ class _RequestsScreenState extends State<RequestsScreen> {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text('Status updated successfully'),
-                            backgroundColor: Colors.green,
                           ),
                         );
                         _fetchRequests();
@@ -322,7 +313,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text('Failed to update: ${e.toString()}'),
-                            backgroundColor: Colors.red,
+                            backgroundColor: C.danger,
                           ),
                         );
                       }
@@ -341,17 +332,17 @@ class _RequestsScreenState extends State<RequestsScreen> {
   Color _getStatusColor(String status) {
     switch (status) {
       case 'Pending':
-        return Colors.orange;
+        return C.warn;
       case 'Approved':
-        return Colors.green;
+        return C.ok;
       case 'Rejected':
-        return Colors.red;
+        return C.danger;
       case 'Ordered':
-        return Colors.blue;
+        return C.accent;
       case 'Delivered':
-        return Colors.teal;
+        return C.text;
       default:
-        return Colors.grey;
+        return C.muted;
     }
   }
 
@@ -375,10 +366,10 @@ class _RequestsScreenState extends State<RequestsScreen> {
               child: CircularProgressIndicator(),
             )
           : _requests.isEmpty
-              ? const Center(
+              ? Center(
                   child: Text(
                     'No requests yet',
-                    style: TextStyle(fontSize: 18, color: Colors.grey),
+                    style: TextStyle(fontSize: 18, color: C.muted),
                   ),
                 )
               : RefreshIndicator(
@@ -397,11 +388,10 @@ class _RequestsScreenState extends State<RequestsScreen> {
                       final userDisplayName = getUserDisplayName(request);
 
                       return Card(
-                        margin: const EdgeInsets.only(bottom: 16.0),
-                        elevation: 2,
+                        margin: const EdgeInsets.only(bottom: 8),
                         child: InkWell(
                           onTap: isAdmin ? () => _showUpdateStatusDialog(request) : null,
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(4),
                           child: Padding(
                             padding: const EdgeInsets.all(16.0),
                             child: Column(
@@ -423,24 +413,15 @@ class _RequestsScreenState extends State<RequestsScreen> {
                                           const SizedBox(height: 4),
                                           Text(
                                             'Requested by: $userDisplayName • $department',
-                                            style: const TextStyle(
+                                            style: TextStyle(
                                               fontSize: 14,
-                                              color: Colors.grey,
+                                              color: C.muted,
                                             ),
                                           ),
                                         ],
                                       ),
                                     ),
-                                    Chip(
-                                      label: Text(
-                                        status,
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      backgroundColor: _getStatusColor(status),
-                                    ),
+                                    StatusTag(status, _getStatusColor(status)),
                                   ],
                                 ),
                                 const Divider(height: 24),
@@ -468,20 +449,20 @@ class _RequestsScreenState extends State<RequestsScreen> {
                                   const SizedBox(height: 4),
                                   Text(
                                     link,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 14,
-                                      color: Colors.blue,
+                                      color: C.accent,
                                       decoration: TextDecoration.underline,
                                     ),
                                   ),
                                 ],
                                 if (isAdmin) ...[
                                   const SizedBox(height: 12),
-                                  const Text(
+                                  Text(
                                     'Tap to update status',
                                     style: TextStyle(
                                       fontSize: 12,
-                                      color: Colors.grey,
+                                      color: C.muted,
                                       fontStyle: FontStyle.italic,
                                     ),
                                   ),

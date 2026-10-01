@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme.dart';
 import 'package:pocketbase/pocketbase.dart';
 import 'package:intl/intl.dart';
 import '../services/pocketbase_service.dart';
@@ -109,7 +110,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to load reports: ${e.toString()}'),
-            backgroundColor: Colors.red,
+            backgroundColor: C.danger,
           ),
         );
       }
@@ -149,7 +150,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
                   decoration: const InputDecoration(
                     labelText: 'Tasks Completed Today',
                     hintText: 'What did you accomplish?',
-                    border: OutlineInputBorder(),
                   ),
                   maxLines: 3,
                 ),
@@ -159,7 +159,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
                   decoration: const InputDecoration(
                     labelText: 'Current Blockers',
                     hintText: 'Any issues or blockers? (Optional)',
-                    border: OutlineInputBorder(),
                   ),
                   maxLines: 3,
                 ),
@@ -170,7 +169,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text('Please enter tasks completed'),
-                          backgroundColor: Colors.orange,
                         ),
                       );
                       return;
@@ -195,7 +193,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text('Progress report submitted'),
-                            backgroundColor: Colors.green,
                           ),
                         );
                         _fetchReports();
@@ -205,7 +202,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text('Failed to submit: ${e.toString()}'),
-                            backgroundColor: Colors.red,
+                            backgroundColor: C.danger,
                           ),
                         );
                       }
@@ -230,7 +227,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Report deleted'),
-            backgroundColor: Colors.green,
           ),
         );
         _fetchReports();
@@ -240,7 +236,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to delete: ${e.toString()}'),
-            backgroundColor: Colors.red,
+            backgroundColor: C.danger,
           ),
         );
       }
@@ -265,7 +261,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 _deleteReport(reportId);
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
+                backgroundColor: C.danger,
               ),
               child: const Text('Delete'),
             ),
@@ -305,10 +301,10 @@ class _ProgressScreenState extends State<ProgressScreen> {
               child: CircularProgressIndicator(),
             )
           : _reports.isEmpty
-              ? const Center(
+              ? Center(
                   child: Text(
                     'No progress reports yet',
-                    style: TextStyle(fontSize: 18, color: Colors.grey),
+                    style: TextStyle(fontSize: 18, color: C.muted),
                   ),
                 )
               : Column(
@@ -326,8 +322,8 @@ class _ProgressScreenState extends State<ProgressScreen> {
                                     ? Icons.event
                                     : Icons.event_outlined,
                                 color: selectedFilterDate != null
-                                    ? Colors.blue
-                                    : Colors.grey[700],
+                                    ? C.accent
+                                    : C.line,
                               ),
                               tooltip: 'Filter by date',
                               onPressed: () async {
@@ -403,8 +399,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                       final displayName = getUserDisplayName(report);
 
                       return Card(
-                        margin: const EdgeInsets.only(bottom: 16.0),
-                        elevation: 2,
+                        margin: const EdgeInsets.only(bottom: 8),
                         child: Padding(
                           padding: const EdgeInsets.all(16.0),
                           child: Column(
@@ -426,9 +421,9 @@ class _ProgressScreenState extends State<ProgressScreen> {
                                         const SizedBox(height: 4),
                                         Text(
                                           _formatDateTime(created),
-                                          style: const TextStyle(
+                                          style: TextStyle(
                                             fontSize: 12,
-                                            color: Colors.grey,
+                                            color: C.muted,
                                           ),
                                         ),
                                       ],
@@ -438,7 +433,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                                     IconButton(
                                       icon: const Icon(Icons.delete, size: 20),
                                       tooltip: 'Delete',
-                                      color: Colors.red,
+                                      color: C.danger,
                                       onPressed: () => _confirmDelete(report.id),
                                     ),
                                 ],
@@ -458,20 +453,20 @@ class _ProgressScreenState extends State<ProgressScreen> {
                               ),
                               if (currentBlockers.isNotEmpty) ...[
                                 const SizedBox(height: 12),
-                                const Text(
+                                Text(
                                   'Blockers:',
                                   style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.bold,
-                                    color: Colors.redAccent,
+                                    color: C.danger,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
                                   currentBlockers,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 14,
-                                    color: Colors.redAccent,
+                                    color: C.danger,
                                   ),
                                 ),
                               ],

@@ -28,14 +28,17 @@ class PocketBaseService {
     _pb = PocketBase(serverUrl, authStore: store);
     _initialized = true;
 
-    // Re-fetch the user so role changes apply without logging out and in again.
+    // Re-fetch the user in the background so role changes apply without logging
+    // in again. Not awaited: the app opens instantly even when offline.
     if (_pb.authStore.isValid) {
-      try {
-        await _pb.collection('users').authRefresh();
-      } on ClientException catch (e) {
-        // 0 = offline/server down: keep the cached login. Anything else = token is dead.
-        if (e.statusCode != 0) _pb.authStore.clear();
-      }
+      _pb.collection('users').authRefresh().catchError((Object e) {
+        // Only log out when the server rejects the token (e.g. password changed).
+        // Offline, server off, Cloudflare 5xx: keep the saved login.
+        if (e is ClientException && const [401, 403, 404].contains(e.statusCode)) {
+          _pb.authStore.clear();
+        }
+        return RecordAuth();
+      });
     }
   }
 

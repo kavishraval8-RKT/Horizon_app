@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme.dart';
 import '../services/pocketbase_service.dart';
 import 'inventory_list_screen.dart';
 
@@ -61,7 +62,7 @@ class _CategoryScreenState extends State<CategoryScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to load categories: ${e.toString()}'),
-            backgroundColor: Colors.red,
+            backgroundColor: C.danger,
           ),
         );
       }
@@ -87,7 +88,6 @@ class _CategoryScreenState extends State<CategoryScreen> {
                   decoration: const InputDecoration(
                     labelText: 'Category Name',
                     hintText: 'e.g., Sensors, Fasteners',
-                    border: OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -96,7 +96,6 @@ class _CategoryScreenState extends State<CategoryScreen> {
                   decoration: const InputDecoration(
                     labelText: 'Item Name',
                     hintText: 'e.g., MPU6050, M3 Screws',
-                    border: OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -105,7 +104,6 @@ class _CategoryScreenState extends State<CategoryScreen> {
                   decoration: const InputDecoration(
                     labelText: 'Total Quantity',
                     hintText: 'Enter quantity',
-                    border: OutlineInputBorder(),
                   ),
                   keyboardType: TextInputType.number,
                 ),
@@ -124,7 +122,6 @@ class _CategoryScreenState extends State<CategoryScreen> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('Please enter a category name'),
-                      backgroundColor: Colors.orange,
                     ),
                   );
                   return;
@@ -135,7 +132,6 @@ class _CategoryScreenState extends State<CategoryScreen> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('Please enter an item name'),
-                      backgroundColor: Colors.orange,
                     ),
                   );
                   return;
@@ -147,7 +143,6 @@ class _CategoryScreenState extends State<CategoryScreen> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('Please enter a valid quantity'),
-                      backgroundColor: Colors.orange,
                     ),
                   );
                   return;
@@ -169,7 +164,6 @@ class _CategoryScreenState extends State<CategoryScreen> {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('Item and category added successfully'),
-                        backgroundColor: Colors.green,
                       ),
                     );
                     // Refresh the categories list
@@ -180,7 +174,7 @@ class _CategoryScreenState extends State<CategoryScreen> {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text('Failed to add item: ${e.toString()}'),
-                        backgroundColor: Colors.red,
+                        backgroundColor: C.danger,
                       ),
                     );
                   }
@@ -200,7 +194,7 @@ class _CategoryScreenState extends State<CategoryScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('${widget.department} Categories'),
+        title: Text(widget.department),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -214,27 +208,19 @@ class _CategoryScreenState extends State<CategoryScreen> {
               child: CircularProgressIndicator(),
             )
           : _categories.isEmpty
-              ? const Center(
+              ? Center(
                   child: Text(
                     'No categories found',
-                    style: TextStyle(fontSize: 18, color: Colors.grey),
+                    style: TextStyle(fontSize: 18, color: C.muted),
                   ),
                 )
               : RefreshIndicator(
                   onRefresh: _fetchCategories,
-                  child: GridView.builder(
-                    padding: const EdgeInsets.all(16.0),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 16,
-                      mainAxisSpacing: 16,
-                      childAspectRatio: 1.2,
-                    ),
+                  child: ListView.separated(
+                    padding: const EdgeInsets.all(16),
                     itemCount: _categories.length,
-                    itemBuilder: (context, index) {
-                      final category = _categories[index];
-                      return _buildCategoryCard(category);
-                    },
+                    separatorBuilder: (_, _) => const SizedBox(height: 8),
+                    itemBuilder: (context, index) => _buildCategoryCard(_categories[index]),
                   ),
                 ),
       floatingActionButton: isAdmin
@@ -248,67 +234,32 @@ class _CategoryScreenState extends State<CategoryScreen> {
   }
 
   Widget _buildCategoryCard(String category) {
-    // Choose icon and color based on category
-    IconData icon = Icons.folder;
-    Color color = Colors.teal;
-
-    if (category == 'Uncategorized') {
-      icon = Icons.folder_open;
-      color = Colors.grey;
-    } else if (category.toLowerCase().contains('sensor')) {
-      icon = Icons.sensors;
-      color = Colors.green;
-    } else if (category.toLowerCase().contains('motor')) {
-      icon = Icons.settings;
-      color = Colors.orange;
-    } else if (category.toLowerCase().contains('electronic')) {
-      icon = Icons.memory;
-      color = Colors.blue;
-    } else if (category.toLowerCase().contains('tool')) {
-      icon = Icons.build;
-      color = Colors.brown;
-    }
-
     return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
       child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => InventoryListScreen(
-                department: widget.department,
-                category: category,
-              ),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => InventoryListScreen(
+              department: widget.department,
+              category: category,
             ),
-          );
-        },
-        borderRadius: BorderRadius.circular(12),
+          ),
+        ),
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+          child: Row(
             children: [
-              Icon(
-                icon,
-                size: 48,
-                color: color,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                category,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: color,
+              Expanded(
+                child: Text(
+                  category,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: category == 'Uncategorized' ? C.muted : C.text,
+                  ),
                 ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
               ),
+              Icon(Icons.chevron_right, color: C.muted),
             ],
           ),
         ),

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../theme.dart';
 import 'package:pocketbase/pocketbase.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
@@ -61,7 +62,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to load inventory: ${e.toString()}'),
-            backgroundColor: Colors.red,
+            backgroundColor: C.danger,
           ),
         );
       }
@@ -104,9 +105,9 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                     const SizedBox(height: 8),
                     Text(
                       'Available: ${item.data['available_quantity']} / ${item.data['total_quantity']}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 14,
-                        color: Colors.grey,
+                        color: C.muted,
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -115,7 +116,6 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                       decoration: const InputDecoration(
                         labelText: 'How many?',
                         hintText: 'Enter quantity',
-                        border: OutlineInputBorder(),
                       ),
                       keyboardType: TextInputType.number,
                       autofocus: true,
@@ -127,7 +127,6 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                         decoration: const InputDecoration(
                           labelText: 'Damage Notes',
                           hintText: 'Describe the damage...',
-                          border: OutlineInputBorder(),
                         ),
                         maxLines: 3,
                       ),
@@ -149,7 +148,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text('Failed to pick image: ${e.toString()}'),
-                                backgroundColor: Colors.red,
+                                backgroundColor: C.danger,
                               ),
                             );
                           }
@@ -169,7 +168,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                           height: 100,
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.grey),
+                            border: Border.all(color: C.muted),
                           ),
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(8),
@@ -200,15 +199,12 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                                 photo: selectedImage,
                               );
                             },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.orange,
-                            ),
                             child: const Text('Check Out'),
                           ),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: ElevatedButton(
+                          child: OutlinedButton(
                             onPressed: () {
                               _handleAction(
                                 item,
@@ -218,15 +214,15 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                                 photo: selectedImage,
                               );
                             },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.green,
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
                             ),
                             child: const Text('Return'),
                           ),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: ElevatedButton(
+                          child: OutlinedButton(
                             // First tap reveals notes + photo, second tap submits
                             onPressed: () {
                               if (!showNotesAndPhoto) {
@@ -243,10 +239,12 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                                 photo: selectedImage,
                               );
                             },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.red,
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: C.danger,
+                              side: BorderSide(color: C.danger),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
                             ),
-                            child: Text(showNotesAndPhoto ? 'Submit Damage' : 'Damaged'),
+                            child: Text(showNotesAndPhoto ? 'Submit' : 'Damaged'),
                           ),
                         ),
                       ],
@@ -276,7 +274,6 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Please enter a valid quantity'),
-            backgroundColor: Colors.orange,
           ),
         );
       }
@@ -314,7 +311,6 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('$action successful'),
-            backgroundColor: Colors.green,
           ),
         );
         _fetchInventory();
@@ -326,7 +322,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed: $reason'),
-            backgroundColor: Colors.red,
+            backgroundColor: C.danger,
           ),
         );
       }
@@ -352,7 +348,6 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                     decoration: const InputDecoration(
                       labelText: 'Item Name',
                       hintText: 'Enter item name',
-                      border: OutlineInputBorder(),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -361,7 +356,6 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                     decoration: const InputDecoration(
                       labelText: 'Total Quantity',
                       hintText: 'Enter quantity',
-                      border: OutlineInputBorder(),
                     ),
                     keyboardType: TextInputType.number,
                   ),
@@ -378,7 +372,6 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text('Please enter an item name'),
-                          backgroundColor: Colors.orange,
                         ),
                       );
                       return;
@@ -389,7 +382,6 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text('Please enter a valid quantity'),
-                          backgroundColor: Colors.orange,
                         ),
                       );
                       return;
@@ -411,7 +403,6 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text('Item added successfully'),
-                            backgroundColor: Colors.green,
                           ),
                         );
                         _fetchInventory();
@@ -421,7 +412,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text('Failed to add item: ${e.toString()}'),
-                            backgroundColor: Colors.red,
+                            backgroundColor: C.danger,
                           ),
                         );
                       }
@@ -451,14 +442,14 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
             if (context.mounted) Navigator.pop(context);
             if (mounted) {
               ScaffoldMessenger.of(this.context).showSnackBar(
-                SnackBar(content: Text(done), backgroundColor: Colors.green),
+                SnackBar(content: Text(done), backgroundColor: C.ok),
               );
               _fetchInventory();
             }
           } catch (e) {
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red),
+                SnackBar(content: Text('Failed: $e'), backgroundColor: C.danger),
               );
             }
           }
@@ -473,7 +464,6 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                 controller: nameController,
                 decoration: const InputDecoration(
                   labelText: 'Item Name',
-                  border: OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 16),
@@ -481,7 +471,6 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                 controller: totalController,
                 decoration: const InputDecoration(
                   labelText: 'Total Quantity',
-                  border: OutlineInputBorder(),
                 ),
                 keyboardType: TextInputType.number,
               ),
@@ -503,7 +492,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                       ),
                       ElevatedButton(
                         onPressed: () => Navigator.pop(c, true),
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                        style: ElevatedButton.styleFrom(backgroundColor: C.danger),
                         child: const Text('Delete'),
                       ),
                     ],
@@ -516,7 +505,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                   );
                 }
               },
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              style: TextButton.styleFrom(foregroundColor: C.danger),
               child: const Text('Delete'),
             ),
             TextButton(
@@ -535,7 +524,6 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                     SnackBar(
                       content: Text('Enter a name and a total of at least $checkedOut '
                           '(currently checked out or damaged)'),
-                      backgroundColor: Colors.orange,
                     ),
                   );
                   return;
@@ -580,10 +568,10 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
               child: CircularProgressIndicator(),
             )
           : _inventoryItems.isEmpty
-              ? const Center(
+              ? Center(
                   child: Text(
                     'No inventory found',
-                    style: TextStyle(fontSize: 18, color: Colors.grey),
+                    style: TextStyle(fontSize: 18, color: C.muted),
                   ),
                 )
               : RefreshIndicator(
@@ -594,50 +582,34 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                     itemBuilder: (context, index) {
                       final item = _inventoryItems[index];
                       final name = item.data['name'] ?? 'Unknown';
-                      final department = item.data['department'] ?? 'N/A';
                       final availableQty = item.data['available_quantity'] ?? 0;
                       final totalQty = item.data['total_quantity'] ?? 0;
 
                       return Card(
-                        margin: const EdgeInsets.only(bottom: 12.0),
+                        margin: const EdgeInsets.only(bottom: 8),
                         child: InkWell(
                           onTap: () => _showActionBottomSheet(item),
                           onLongPress: isAdmin ? () => _showEditItemDialog(item) : null,
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(4),
                           child: Padding(
                             padding: const EdgeInsets.all(16.0),
                             child: Row(
                               children: [
                                 Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        name,
-                                        style: const TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        department,
-                                        style: const TextStyle(
-                                          fontSize: 14,
-                                          color: Colors.grey,
-                                        ),
-                                      ),
-                                    ],
+                                  child: Text(
+                                    name,
+                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                                   ),
                                 ),
                                 Text(
-                                  '$availableQty / $totalQty',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: availableQty > 0 ? Colors.green : Colors.red,
+                                  '$availableQty',
+                                  style: mono.copyWith(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w600,
+                                    color: availableQty > 0 ? C.text : C.danger,
                                   ),
                                 ),
+                                Text(' / $totalQty', style: mono.copyWith(color: C.muted)),
                               ],
                             ),
                           ),

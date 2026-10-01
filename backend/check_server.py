@@ -90,4 +90,26 @@ assert s == 200, rep
 assert call("DELETE", f"/api/collections/progress_reports/records/{rep['id']}", member)[0] != 204
 assert call("DELETE", f"/api/collections/progress_reports/records/{rep['id']}", admin)[0] == 204
 
+# equipment bookings: admins add equipment, no overlapping slots, members cancel only their own
+assert call("POST", "/api/collections/equipment/records", member, {"name": "x"})[0] != 200
+s, printer = call("POST", "/api/collections/equipment/records", admin, {"name": "3D printer"})
+assert s == 200, printer
+
+
+def book(token, user, start, end):
+    return call("POST", "/api/collections/bookings/records", token,
+                {"equipment": printer["id"], "user": user, "start": start, "end": end})
+
+
+s, b1 = book(member, member_id, "2030-01-01 10:00:00.000Z", "2030-01-01 12:00:00.000Z")
+assert s == 200, b1
+assert book(admin, admin_id, "2030-01-01 11:00:00.000Z", "2030-01-01 13:00:00.000Z")[0] == 400  # overlaps
+assert book(admin, admin_id, "2030-01-01 09:00:00.000Z", "2030-01-01 10:30:00.000Z")[0] == 400  # overlaps start
+assert book(admin, admin_id, "2030-01-01 13:00:00.000Z", "2030-01-01 12:30:00.000Z")[0] == 400  # ends before start
+assert book(member, admin_id, "2030-01-02 10:00:00.000Z", "2030-01-02 11:00:00.000Z")[0] != 200  # as someone else
+s, b2 = book(admin, admin_id, "2030-01-01 12:00:00.000Z", "2030-01-01 13:00:00.000Z")  # back-to-back is fine
+assert s == 200, b2
+assert call("DELETE", f"/api/collections/bookings/records/{b2['id']}", member)[0] != 204
+assert call("DELETE", f"/api/collections/bookings/records/{b1['id']}", member)[0] == 204
+
 print("all server checks passed")
