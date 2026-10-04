@@ -34,17 +34,25 @@ onRecordCreateExecute((e) => {
     // Return (good or damaged): anyone, admins included, can only return what they
     // themselves have out (their check-outs minus their returns of either kind).
     if (action === "Returned" || action === "Returned Damaged") {
-      const out = new DynamicModel({ n: 0 })
+      // Walk this person's history for the part in time order, never letting the
+      // balance go below zero: a return can only cancel what was out at that moment.
+      // (Before per-person returns existed, admins could "return" stock nobody had
+      // out; a plain sum turned those into credit that hid later check-outs.)
+      const rows = arrayOf(new DynamicModel({ action: "", quantity: 0 }))
       txApp.db()
         .newQuery(
-          "SELECT COALESCE(SUM(CASE WHEN action = 'Checked Out' THEN quantity " +
-          "WHEN action IN ('Returned', 'Returned Damaged') THEN -quantity ELSE 0 END), 0) AS n " +
-          "FROM inventory_logs WHERE item = {:item} AND user = {:user}")
+          "SELECT action, quantity FROM inventory_logs WHERE item = {:item} AND user = {:user} " +
+          "ORDER BY created, rowid")
         .bind({ item: item.id, user: userId })
-        .one(out)
-      if (qty > out.n) {
-        throw new BadRequestError(out.n > 0
-          ? `You only have ${out.n} of these checked out.`
+        .all(rows)
+      let out = 0
+      for (const r of rows) {
+        if (r.action === "Checked Out") out += r.quantity
+        else if (r.action === "Returned" || r.action === "Returned Damaged") out = Math.max(0, out - r.quantity)
+      }
+      if (qty > out) {
+        throw new BadRequestError(out > 0
+          ? `You only have ${out} of these checked out.`
           : "You don't have any of these checked out.")
       }
     }

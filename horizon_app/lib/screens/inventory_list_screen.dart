@@ -77,10 +77,10 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
               '(action = "Checked Out" || action = "Returned" || action = "Returned Damaged")',
               {'me': me, 'item': item.id},
             ),
-            fields: 'action,quantity',
+            fields: 'item,action,quantity',
+            sort: 'created',
           );
-      return logs.fold<int>(0, (n, l) =>
-          n + (l.getStringValue('action') == 'Checked Out' ? 1 : -1) * l.getIntValue('quantity'));
+      return holdings(logs)[item.id] ?? 0;
     } catch (_) {
       return 0; // can't tell: hide Return rather than offer one the server would refuse
     }

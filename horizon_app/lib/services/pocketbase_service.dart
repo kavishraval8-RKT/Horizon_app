@@ -144,3 +144,21 @@ String? serverReason(Map? response) {
   final msg = response?['message'];
   return msg is String && msg.isNotEmpty ? msg : null;
 }
+
+/// Parts a person has out, per item id, from their ledger lines **sorted oldest first**.
+/// Mirrors the server (pb_hooks/inventory.pb.js): the balance never drops below zero, so
+/// old over-returns (admins "returning" stock nobody had out) can't hide later check-outs.
+Map<String, int> holdings(Iterable<RecordModel> logsOldestFirst) {
+  final out = <String, int>{};
+  for (final l in logsOldestFirst) {
+    final item = l.getStringValue('item');
+    final q = l.getIntValue('quantity');
+    switch (l.getStringValue('action')) {
+      case 'Checked Out':
+        out[item] = (out[item] ?? 0) + q;
+      case 'Returned' || 'Returned Damaged':
+        out[item] = ((out[item] ?? 0) - q).clamp(0, 1 << 31);
+    }
+  }
+  return out;
+}

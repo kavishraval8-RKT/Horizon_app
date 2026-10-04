@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../theme.dart';
 import 'package:pocketbase/pocketbase.dart';
@@ -338,6 +339,20 @@ class _RequestsScreenState extends State<RequestsScreen> {
         _ => Icons.schedule,
       };
 
+  static final _stamp = DateFormat('MMM d · h:mm a');
+
+  /// "Oct 3 · 4:22 PM", plus when the status last changed if an admin has touched it.
+  String _when(RecordModel r) {
+    DateTime? t(String f) => DateTime.tryParse(r.getStringValue(f))?.toLocal();
+    final created = t('created');
+    final updated = t('updated');
+    if (created == null) return '';
+    final changed = updated != null && updated.difference(created).inSeconds > 5;
+    return changed
+        ? '${_stamp.format(created)}  ·  updated ${_stamp.format(updated)}'
+        : _stamp.format(created);
+  }
+
   Color _getStatusColor(String status) {
     switch (status) {
       case 'Pending':
@@ -426,6 +441,19 @@ class _RequestsScreenState extends State<RequestsScreen> {
                                               fontSize: 14,
                                               color: C.muted,
                                             ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Row(
+                                            children: [
+                                              Icon(Icons.schedule, size: 13, color: C.muted),
+                                              const SizedBox(width: 4),
+                                              Flexible(
+                                                child: Text(
+                                                  _when(request),
+                                                  style: TextStyle(fontSize: 12, color: C.muted),
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ],
                                       ),

@@ -181,4 +181,23 @@ coll = call("GET", "/api/collections/inventory_logs", su)[1]
 photo_field = [f for f in coll["fields"] if f["name"] == "photo"][0]
 assert photo_field["protected"] and photo_field["maxSize"] == 5 * 1024 * 1024, photo_field
 
+# legacy over-returns (allowed before per-person returns) must not become credit
+s, part = call("POST", "/api/collections/inventory/records", admin,
+               {"name": "Legacy", "department": "Avionics", "total_quantity": 50, "available_quantity": 50})
+s, old_log = call("POST", "/api/collections/inventory_logs/records", admin,
+                  {"item": part["id"], "user": admin_id, "quantity": 1, "action": "Checked Out"})
+# rewrite it the way old data looks: an admin "return" of 33 nobody had out
+assert call("PATCH", f"/api/collections/inventory_logs/records/{old_log['id']}", su,
+            {"action": "Returned", "quantity": 33})[0] == 200
+
+
+def legacy(action, qty):
+    return call("POST", "/api/collections/inventory_logs/records", admin,
+                {"item": part["id"], "user": admin_id, "quantity": qty, "action": action})[0]
+
+
+assert legacy("Checked Out", 2) == 200   # plain sum would say -31: hidden and unreturnable
+assert legacy("Returned", 2) == 200      # clamped walk says 2 out
+assert legacy("Returned", 1) == 400      # and no more
+
 print("all server checks passed")

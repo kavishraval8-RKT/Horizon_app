@@ -53,23 +53,19 @@ class _ReturnPartsScreenState extends State<ReturnPartsScreen> {
               'user = {:me} && (action = "Checked Out" || action = "Returned" || action = "Returned Damaged")',
               {'me': me},
             ),
+            sort: 'created',
             expand: 'item',
             fields:
                 'item,action,quantity,expand.item.id,expand.item.name,'
                 'expand.item.category,expand.item.department',
           );
 
-      final out = <String, int>{};
-      final items = <String, RecordModel>{};
-      for (final l in logs) {
-        final item = l.get<RecordModel?>('expand.item');
-        if (item == null) continue; // part was deleted since
-        final q = l.getIntValue('quantity');
-        out[item.id] =
-            (out[item.id] ?? 0) +
-            (l.getStringValue('action') == 'Checked Out' ? q : -q);
-        items[item.id] = item;
-      }
+      final out = holdings(logs);
+      final items = <String, RecordModel>{
+        for (final l in logs)
+          if (l.get<RecordModel?>('expand.item') != null) l.getStringValue('item'): l.get<RecordModel>('expand.item'),
+      };
+      out.removeWhere((id, _) => !items.containsKey(id)); // part was deleted since
 
       final previous = {for (final h in _held) h.item.id: h};
       final held =
